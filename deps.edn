@@ -1,0 +1,4 @@
+{;; 第一級 runtime は ClojureScript/nbb（repo-wide runtime priority）。
+ ;; この deps.edn は editor/clj-kondo 向けの classpath 宣言で、JVM 実行は想定しない。
+ :paths ["src"]
+ :aliases {:test {:extra-paths ["test"]}}}

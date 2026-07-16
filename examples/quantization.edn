@@ -1,0 +1,34 @@
+{:video/id "quantization-int4"
+ :video/fps 30
+ :video/size [1920 1080]
+ :video/theme :cyber-dark
+ :video/copy
+ {:hook       {:en "AND WHERE IT BREAKS"      :ja "そして、どこで壊れるか"}
+  :act-title  {:en "ACTIVATIONS"              :ja "アクティベーション"}
+  :badge      {:en "INT4"                     :ja "INT4"}
+  :scale      {:en "ONE SHARED SCALE"         :ja "共有スケールは1つ"}
+  :outlier    {:en "~100x"                    :ja "~100倍"}
+  :title      {:en "Quantization"             :ja "量子化"}
+  :sub        {:en "Engineering behind LLM inference" :ja "LLM推論のエンジニアリング"}
+  :tk-title   {:en "THE PROBLEM"              :ja "問題"}
+  :tk-1       {:en "One outlier stretches the scale" :ja "外れ値1つがスケールを引き延ばす"}
+  :tk-2       {:en "Everything else rounds to zero"  :ja "残り全部がゼロに丸まる"}}
+ :video/scenes
+ [{:scene/id :title
+   :scene/dur 3.0
+   :scene/template :title-card
+   :scene/copy {:title :title :sub :sub}}
+  {:scene/id :activations
+   :scene/dur 6.0
+   :scene/template :bar-chart
+   :scene/copy {:kicker :hook :panel-title :act-title :badge :badge
+                :caption :scale :annotation :outlier}
+   :scene/args {:values [0.10 0.42 0.08 0.12 0.09 0.11 0.07 0.95 0.10 0.08
+                         0.12 0.09 0.10 0.36 0.68 0.11]
+                :highlight {1 :alert 7 :accent 13 :alert 14 :alert}
+                :annotation {:from 7 :to 14}
+                :axis-labels ["-130" "+130"]}}
+  {:scene/id :takeaway
+   :scene/dur 4.0
+   :scene/template :callout
+   :scene/copy {:title :tk-title :lines [:tk-1 :tk-2]}}]}
