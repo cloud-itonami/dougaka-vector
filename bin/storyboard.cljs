@@ -29,6 +29,7 @@
           "--max-dur"  (recur (rest more) (assoc opts :max-dur (js/parseFloat (first more))))
           "--attempts" (recur (rest more) (assoc opts :attempts (js/parseInt (first more))))
           "--mock"     (recur (rest more) (assoc opts :mock (first more)))
+          "--dump-raw" (recur (rest more) (assoc opts :dump-raw (first more)))
           (recur more (assoc opts :topic a)))))))
 
 (defn- chat! [messages]
@@ -46,7 +47,12 @@
                                      :body (js/JSON.stringify
                                             (clj->js {:model model
                                                       :messages messages
-                                                      :temperature 0.4}))}))
+                                                      :temperature 0.4
+                                                      ;; reasoning upstreams truncate EDN at the
+                                                      ;; default budget; murakumo README: budget
+                                                      ;; generously + disable thinking
+                                                      :max_tokens 8000
+                                                      :chat_template_kwargs {:enable_thinking false}}))}))
             body (.json resp)]
       (when-not (.-ok resp)
         (throw (ex-info (str "chat/completions HTTP " (.-status resp) ": "
@@ -54,10 +60,11 @@
                         {})))
       (-> body .-choices (aget 0) .-message .-content))))
 
-(defn- attempt! [{:keys [topic mock] :as opts} messages n]
+(defn- attempt! [{:keys [topic mock dump-raw] :as opts} messages n]
   (p/let [raw (if mock
                 (fs/readFileSync mock "utf8")
                 (chat! (clj->js messages)))
+          _ (when dump-raw (fs/appendFileSync dump-raw (str "==== attempt " n " ====\n" raw "\n")))
           parsed (sb/extract-edn raw)
           {:keys [ok? errors]} (sb/check parsed opts)]
     (cond

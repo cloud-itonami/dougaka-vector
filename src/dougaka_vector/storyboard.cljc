@@ -9,19 +9,36 @@
 
 (def template-catalog
   "What the LLM is allowed to use, kept in sync with spec/templates and
-   scene.cljc. Descriptions are contract, not prose — the model copies shapes."
-  "- :title-card   copy{:title :sub?}                          full-frame statement
-- :bar-chart    copy{:kicker? :panel-title? :badge? :caption? :annotation?}
-                args{:values [0..1 ...] :highlight {idx color-kw}
-                     :annotation {:from idx :to idx}? :axis-labels [min max]?}
-- :line-chart   copy{:kicker? :panel-title? :caption? :label?}
-                args{:values [0..1 ...] :axis-labels [min max]? :line-color kw?}
-- :flow         copy{:kicker? :steps [copy-id ...]}            boxed pipeline L→R
-- :big-number   copy{:kicker? :label?}
-                args{:from n :to n :decimals n? :prefix s? :suffix s?}
-- :callout      copy{:title :lines [copy-id ...]}              takeaway panel
+   scene.cljc. Descriptions are contract, not prose — the model copies shapes.
+   (Optional roles/args are marked 'opt', never with a ? in the key itself.)"
+  "- :title-card   copy roles: :title, :sub(opt)               full-frame statement
+- :bar-chart    copy roles: :kicker :panel-title :badge :caption :annotation (all opt)
+                args: {:values [0..1 ...], :highlight {idx color-kw} opt,
+                       :annotation {:from idx :to idx} opt, :axis-labels [min max] opt}
+- :line-chart   copy roles: :kicker :panel-title :caption :label (all opt)
+                args: {:values [0..1 ...], :axis-labels [min max] opt, :line-color kw opt}
+- :flow         copy roles: :kicker(opt), :steps = VECTOR of copy-ids   boxed pipeline L→R
+- :big-number   copy roles: :kicker :label (opt)
+                args: {:from n, :to n, :decimals n opt, :prefix s opt, :suffix s opt}
+- :callout      copy roles: :title, :lines = VECTOR of copy-ids         takeaway panel
 Color keywords: :accent (cyan, the signal) :alert (red, failure/outlier)
 :warn (amber, default bars) :ok (green) :ink :ink-dim")
+
+(def mini-example
+  "A compact worked example embedded in the system prompt — models copy
+   shapes far more reliably than they follow prose."
+  "{:video/id \"example\"
+ :video/fps 30
+ :video/size [1920 1080]
+ :video/theme :cyber-dark
+ :video/copy {:hook {:en \"WHERE IT BREAKS\" :ja \"どこで壊れるか\"}
+              :s1 {:en \"INPUT\" :ja \"入力\"}
+              :s2 {:en \"QUERY\" :ja \"クエリ\"}}
+ :video/scenes
+ [{:scene/id :hook :scene/dur 3.0 :scene/template :title-card
+   :scene/copy {:title :hook}}
+  {:scene/id :pipe :scene/dur 4.0 :scene/template :flow
+   :scene/copy {:kicker :hook :steps [:s1 :s2]}}]}")
 
 (defn system-prompt [{:keys [locales max-scenes max-dur]}]
   (str
@@ -40,13 +57,17 @@ Output EXACTLY ONE EDN map, no markdown fences, no commentary. Contract:
                  :scene/copy {role :copy-id ...} :scene/args {...}} ...]}
 
 Rules:
-- Scenes reference copy-ids (keywords), NEVER literal strings. Every copy-id
-  used must exist in :video/copy with every locale: " (pr-str locales) ".
+- :video/copy maps copy-id → locale map, e.g. {:hook {:en \"...\" :ja \"...\"}}.
+  NEVER locale → strings. Scenes reference copy-ids (keywords), NEVER literal
+  strings. Every copy-id used must exist in :video/copy with every locale: "
+   (pr-str locales) ".
 - Templates available:\n" template-catalog "
 - At most " (or max-scenes 8) " scenes; total duration ≤ " (or max-dur 60) "s;
   each scene 2.5–8s. Numbers in :values are normalized 0..1.
 - The visuals must make the argument by themselves; captions only anchor them.
-- No characters, no dialogue, no emoji."))
+- No characters, no dialogue, no emoji.
+
+Minimal shape example (copy the SHAPES, invent the content):\n" mini-example))
 
 (defn user-prompt [topic]
   (str "Topic: " topic "\nReturn the storyboard EDN map now."))
