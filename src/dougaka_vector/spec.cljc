@@ -3,7 +3,7 @@
    identically on every runtime in the priority chain. Returns
    {:ok? bool :errors [string ...]} — never throws, callers decide.")
 
-(def templates #{:title-card :bar-chart :callout :custom})
+(def templates #{:title-card :bar-chart :line-chart :flow :big-number :callout :custom})
 
 (defn- err [errors cond' msg]
   (if cond' errors (conj errors msg)))

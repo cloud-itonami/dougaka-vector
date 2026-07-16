@@ -19,15 +19,17 @@
             [dougaka-vector.timeline :as timeline]))
 
 (defn- parse-args [argv]
-  (loop [args argv opts {:locale :en :png? false}]
+  (loop [args argv opts {:locale :en :png? false :font-dirs [] :system-fonts? true}]
     (if (empty? args)
       opts
       (let [[a & more] args]
         (case a
-          "--out"    (recur (rest more) (assoc opts :out (first more)))
-          "--locale" (recur (rest more) (assoc opts :locale (keyword (first more))))
-          "--fps"    (recur (rest more) (assoc opts :fps (js/parseFloat (first more))))
-          "--png"    (recur more (assoc opts :png? true))
+          "--out"       (recur (rest more) (assoc opts :out (first more)))
+          "--locale"    (recur (rest more) (assoc opts :locale (keyword (first more))))
+          "--fps"       (recur (rest more) (assoc opts :fps (js/parseFloat (first more))))
+          "--png"       (recur more (assoc opts :png? true))
+          "--font-dir"  (recur (rest more) (update opts :font-dirs conj (first more)))
+          "--no-system-fonts" (recur more (assoc opts :system-fonts? false))
           (recur more (assoc opts :storyboard a)))))))
 
 (defn- load-resvg []
@@ -37,9 +39,10 @@
 (defn- pad6 [n] (.padStart (str n) 6 "0"))
 
 (defn -main [& argv]
-  (let [{:keys [storyboard out locale fps png?]} (parse-args argv)]
+  (let [{:keys [storyboard out locale fps png? font-dirs system-fonts?]} (parse-args argv)]
     (when-not (and storyboard out)
-      (println "usage: nbb --classpath src bin/render.cljs <storyboard.edn> --out <dir> [--locale en] [--fps 30] [--png]")
+      (println "usage: nbb --classpath src bin/render.cljs <storyboard.edn> --out <dir>"
+               "[--locale en] [--fps 30] [--png] [--font-dir <dir>]... [--no-system-fonts]")
       (js/process.exit 2))
     (let [sb (edn/read-string (fs/readFileSync storyboard "utf8"))
           {:keys [ok? errors]} (spec/validate-storyboard sb)]
@@ -67,7 +70,9 @@
                          base (path/join frames-dir (pad6 (+ frame i)))]
                      (fs/writeFileSync (str base ".svg") doc)
                      (when resvg
-                       (let [r (new (.-Resvg resvg) doc)]
+                       (let [opts (clj->js {:font {:fontDirs font-dirs
+                                                   :loadSystemFonts system-fonts?}})
+                             r (new (.-Resvg resvg) doc opts)]
                          (fs/writeFileSync (str base ".png") (.asPng (.render r)))))))
                  {:frame (+ frame (count times))
                   :cues (into cues (map #(update % :cue/t + scene-t0))

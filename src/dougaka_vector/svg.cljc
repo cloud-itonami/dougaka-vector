@@ -75,6 +75,52 @@
                                :stroke-width stroke-width
                                :opacity opacity}) "/>")))
 
+(defn- partial-points
+  "First `progress` (0..1) portion of a polyline's points, interpolating the
+   last visible segment so the line 'draws' smoothly. Points: [[x y] ...]."
+  [pts progress]
+  (let [pts (vec pts)
+        n (count pts)
+        p (max 0.0 (min 1.0 (double (or progress 1.0))))]
+    (cond
+      (< n 2) pts
+      (>= p 1.0) pts
+      :else
+      (let [total (dec n)
+            fpos (* p total)
+            i (long (Math/floor fpos))
+            u (- fpos i)]
+        (if (>= i total)
+          pts
+          (let [[x0 y0] (nth pts i)
+                [x1 y1] (nth pts (inc i))]
+            (conj (subvec pts 0 (inc i))
+                  [(+ x0 (* (- x1 x0) u)) (+ y0 (* (- y1 y0) u))])))))))
+
+(defmethod node->svg :polyline [th {:keys [node/attrs]}]
+  (let [{:keys [points progress stroke stroke-width opacity]} attrs
+        pts (partial-points points progress)]
+    (if (< (count pts) 2)
+      ""
+      (str "<polyline " (attrs->str {:points (str/join " " (map (fn [[x y]] (str (fmt-num x) "," (fmt-num y))) pts))
+                                     :fill "none"
+                                     :stroke (theme/color th (or stroke :accent))
+                                     :stroke-width (or stroke-width 3)
+                                     :stroke-linejoin "round"
+                                     :stroke-linecap "round"
+                                     :opacity opacity}) "/>"))))
+
+(defmethod node->svg :counter [th {:keys [node/attrs]}]
+  (let [{:keys [x y value decimals prefix suffix fill size anchor opacity weight]} attrs
+        d (long (or decimals 0))
+        v (double (or value 0))
+        shown #?(:clj (format (str "%." d "f") v)
+                 :cljs (.toFixed v d))]
+    (node->svg th {:node/kind :text
+                   :node/attrs {:x x :y y :text (str prefix shown suffix)
+                                :fill fill :size size :anchor anchor
+                                :opacity opacity :weight weight}})))
+
 (defmethod node->svg :default [_th node]
   (str "<!-- unknown node kind " (escape (:node/kind node)) " -->"))
 

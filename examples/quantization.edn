@@ -12,7 +12,18 @@
   :sub        {:en "Engineering behind LLM inference" :ja "LLM推論のエンジニアリング"}
   :tk-title   {:en "THE PROBLEM"              :ja "問題"}
   :tk-1       {:en "One outlier stretches the scale" :ja "外れ値1つがスケールを引き延ばす"}
-  :tk-2       {:en "Everything else rounds to zero"  :ja "残り全部がゼロに丸まる"}}
+  :tk-2       {:en "Everything else rounds to zero"  :ja "残り全部がゼロに丸まる"}
+  :ppl-kick   {:en "WHAT IT COSTS"             :ja "その代償"}
+  :ppl-title  {:en "PERPLEXITY"                :ja "パープレキシティ"}
+  :ppl-label  {:en "INT4"                      :ja "INT4"}
+  :ppl-cap    {:en "LOWER IS BETTER"           :ja "低いほど良い"}
+  :flow-kick  {:en "THE PIPELINE"              :ja "パイプライン"}
+  :fp16       {:en "FP16"                      :ja "FP16"}
+  :scale-step {:en "SCALE"                     :ja "スケール"}
+  :round-step {:en "ROUND"                     :ja "丸め"}
+  :int4       {:en "INT4"                      :ja "INT4"}
+  :bn-kick    {:en "THE PAYOFF"                :ja "見返り"}
+  :bn-label   {:en "smaller weights, same GPU" :ja "重みは1/4、GPUはそのまま"}}
  :video/scenes
  [{:scene/id :title
    :scene/dur 3.0
@@ -28,6 +39,23 @@
                 :highlight {1 :alert 7 :accent 13 :alert 14 :alert}
                 :annotation {:from 7 :to 14}
                 :axis-labels ["-130" "+130"]}}
+  {:scene/id :pipeline
+   :scene/dur 4.5
+   :scene/template :flow
+   :scene/copy {:kicker :flow-kick :steps [:fp16 :scale-step :round-step :int4]}}
+  {:scene/id :perplexity
+   :scene/dur 5.0
+   :scene/template :line-chart
+   :scene/copy {:kicker :ppl-kick :panel-title :ppl-title
+                :label :ppl-label :caption :ppl-cap}
+   :scene/args {:values [0.18 0.2 0.22 0.28 0.35 0.55 0.92]
+                :axis-labels ["16-bit" "2-bit"]
+                :line-color :alert}}
+  {:scene/id :payoff
+   :scene/dur 3.5
+   :scene/template :big-number
+   :scene/copy {:kicker :bn-kick :label :bn-label}
+   :scene/args {:from 0 :to 4 :suffix "x"}}
   {:scene/id :takeaway
    :scene/dur 4.0
    :scene/template :callout

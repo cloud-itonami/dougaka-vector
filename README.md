@@ -33,18 +33,29 @@ topic ──▶ storyboard EDN ──▶ scenegraph ──▶ SVG frames ──�
 # test（nbb / 第一級 runtime は ClojureScript。JVM 不要）
 nbb --classpath src:test test/run.cljs
 
-# render（SVG frames + manifest.edn + cues.edn）
-nbb --classpath src bin/render.cljs examples/quantization.edn \
-    --out /tmp/dougaka-vector/quantization --locale en
+# 0) storyboard 生成（唯一の LLM ステージ。murakumo.cloud OpenAI 互換 gateway）
+MURAKUMO_API_KEY=... nbb --classpath src bin/storyboard.cljs \
+    "How INT4 quantization breaks" --out sb.edn --locales en,ja
+#    token は cloud-murakumo README の `clojure -M:token issue` で mint（site-worker
+#    の chat gate 用 secret。generation.murakumo.cloud の secret とは別物）。
+#    オフライン検証: --mock <raw-llm-output-file>（抽出・検証パスは同一）
 
-# PNG まで出す場合（optional dep）
+# 1) render（SVG frames + manifest.edn + cues.edn。PNG は optional dep）
 npm install @resvg/resvg-js
 nbb --classpath src bin/render.cljs examples/quantization.edn \
-    --out /tmp/dougaka-vector/quantization --locale ja --png
+    --out /tmp/dougaka-vector/quantization --locale ja --png \
+    [--font-dir fonts/] [--no-system-fonts]   # CI 等で font を固定する時
 
-# assemble（ai-gftd-dougaka の担当領域。直接なら:）
-ffmpeg -framerate 30 -i /tmp/dougaka-vector/quantization/frames/%06d.png \
-       -pix_fmt yuv420p quantization-ja.mp4
+# 2) audio plan（cues.edn → audio-plan.edn: SFX cue 選定 + ongakuka への BGM 依頼仕様）
+nbb --classpath src bin/audio_plan.cljs /tmp/dougaka-vector/quantization
+
+# 3) assemble — 本番は ai-gftd-dougaka（ffmpeg assembler）。単機での dev 検証用に
+#    非正規 driver を同梱（ffmpeg 1 呼び出しに徹する。assembly ロジックは持たない）:
+nbb --classpath src bin/assemble.cljs /tmp/dougaka-vector/quantization \
+    --out quantization-ja.mp4 [--bgm bgm.wav] [--sfx-dir sfx/]  # sfx/<kind>.wav
+
+# 4) publish — yukkuri の exec パターンを転用: `kotoba-lang/com-youtube` +
+#    operator 注入 OAuth（client-id/secret/refresh-token）。本 repo に複製しない。
 ```
 
 ## Layout
@@ -52,13 +63,18 @@ ffmpeg -framerate 30 -i /tmp/dougaka-vector/quantization/frames/%06d.png \
 | path | 役割 |
 |---|---|
 | `src/dougaka_vector/spec.cljc` | storyboard EDN の検証（no-throw、`{:ok? :errors}`） |
-| `src/dougaka_vector/scene.cljc` | storyboard → scenegraph compile（templates: `:title-card` `:bar-chart` `:callout` `:custom`） |
+| `src/dougaka_vector/scene.cljc` | storyboard → scenegraph compile（templates: `:title-card` `:bar-chart` `:line-chart` `:flow` `:big-number` `:callout` `:custom`） |
 | `src/dougaka_vector/timeline.cljc` | keyframe track sampling / frame times / SFX cue events |
 | `src/dougaka_vector/ease.cljc` | easing（linear/cubic/expo/back/step） |
-| `src/dougaka_vector/svg.cljc` | sampled nodes → SVG document string |
+| `src/dougaka_vector/svg.cljc` | sampled nodes → SVG document string（`:polyline` progress 描画 / `:counter` 数値アニメ含む） |
 | `src/dougaka_vector/theme.cljc` | design tokens（`:cyber-dark`） |
-| `bin/render.cljs` | nbb CLI（frames + manifest.edn + cues.edn） |
-| `examples/quantization.edn` | 参照スタイル再現のサンプル storyboard（en/ja 2 locale） |
+| `src/dougaka_vector/storyboard.cljc` | storyboard 生成の純関数部（prompt 契約 / EDN 抽出 / 検証 feedback） |
+| `src/dougaka_vector/audio.cljc` | cues → audio-plan（SFX ルール / coalesce / ongakuka BGM 依頼仕様） |
+| `bin/render.cljs` | nbb CLI（frames + manifest.edn + cues.edn、`--font-dir`/`--no-system-fonts`） |
+| `bin/storyboard.cljs` | nbb CLI（topic → 検証済み storyboard EDN、retry loop、`--mock`） |
+| `bin/audio_plan.cljs` | nbb CLI（render 出力 dir → audio-plan.edn） |
+| `bin/assemble.cljs` | nbb CLI（**非正規** dev mux driver。本番は ai-gftd-dougaka） |
+| `examples/quantization.edn` | 参照スタイル再現のサンプル storyboard（6 scenes / 全 template 使用 / en+ja） |
 
 ## Scenegraph（中間表現）
 

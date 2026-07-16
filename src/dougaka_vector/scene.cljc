@@ -217,6 +217,182 @@
             lines))}))
 
 ;; ---------------------------------------------------------------------------
+;; :line-chart — an animated line drawing itself across a framed panel
+;; (loss curves, perplexity-vs-bits, throughput…). :values are normalized 0..1.
+
+(defmethod compile-scene :line-chart
+  [{:keys [size text]} {:scene/keys [dur args] :as _scene}]
+  (let [[w h] size
+        {:keys [values axis-labels line-color]} args
+        n (count values)
+        panel-w (* w 0.62)
+        panel-h (* h 0.46)
+        panel-x (/ (- w panel-w) 2)
+        panel-y (/ (- h panel-h) 2)
+        pad 48
+        plot-x (+ panel-x pad)
+        plot-w (- panel-w (* 2 pad))
+        baseline (+ panel-y panel-h (- pad))
+        max-h (- panel-h (* 2.6 pad))
+        pt (fn [i v] [(+ plot-x (* plot-w (/ i (max 1 (dec n)))))
+                      (- baseline (* max-h v))])
+        points (into [] (map-indexed pt) values)
+        [end-x end-y] (peek points)
+        draw-t0 0.5
+        draw-t1 (+ draw-t0 1.2)]
+    {:sg/dur dur
+     :sg/nodes
+     [{:node/id :kicker :node/kind :text
+       :node/attrs {:x (* w 0.08) :y (* h 0.12) :text (or (:kicker text) "")
+                    :size :xs-size :fill :alert :spacing 4 :opacity 0}}
+      {:node/id :panel :node/kind :rect
+       :node/attrs {:x panel-x :y panel-y :w panel-w :h panel-h :rx 12
+                    :fill :panel :stroke :panel-border :stroke-width 1.5 :opacity 0}}
+      {:node/id :panel-title :node/kind :text
+       :node/attrs {:x plot-x :y (+ panel-y 44) :text (or (:panel-title text) "")
+                    :size :xs-size :fill :accent :spacing 3 :opacity 0}}
+      {:node/id :baseline :node/kind :line
+       :node/attrs {:x1 plot-x :y1 baseline :x2 (+ plot-x plot-w) :y2 baseline
+                    :stroke :ink-dim :stroke-width 1 :opacity 0}}
+      {:node/id :y-axis :node/kind :line
+       :node/attrs {:x1 plot-x :y1 baseline :x2 plot-x :y2 (- baseline max-h)
+                    :stroke :ink-dim :stroke-width 1 :opacity 0}}
+      {:node/id :curve :node/kind :polyline
+       :node/attrs {:points points :progress 0 :stroke (or line-color :accent) :stroke-width 4}}
+      {:node/id :end-dot :node/kind :circle
+       :node/attrs {:cx end-x :cy end-y :r 7 :fill (or line-color :accent) :opacity 0}}
+      {:node/id :end-label :node/kind :text
+       :node/attrs {:x (- end-x 14) :y (- end-y 18) :text (or (:label text) "")
+                    :size :xs-size :fill (or line-color :accent) :anchor "end" :opacity 0}}
+      {:node/id :caption :node/kind :text
+       :node/attrs {:x (/ w 2) :y (+ baseline 34) :text (or (:caption text) "")
+                    :size :xs-size :fill :ink-dim :anchor "middle" :spacing 2 :opacity 0}}
+      {:node/id :axis-min :node/kind :text
+       :node/attrs {:x plot-x :y (+ baseline 34) :text (or (first axis-labels) "")
+                    :size :xs-size :fill :ink-dim :opacity 0}}
+      {:node/id :axis-max :node/kind :text
+       :node/attrs {:x (+ plot-x plot-w) :y (+ baseline 34) :text (or (second axis-labels) "")
+                    :size :xs-size :fill :ink-dim :anchor "end" :opacity 0}}]
+     :sg/tracks
+     [{:track/node :kicker :track/attr :opacity
+       :track/keys [[0.0 0.0] [0.4 1.0]] :track/ease :out-cubic}
+      {:track/node :panel :track/attr :opacity
+       :track/keys [[0.1 0.0] [0.5 1.0]] :track/ease :out-cubic}
+      {:track/node :panel-title :track/attr :opacity
+       :track/keys [[0.3 0.0] [0.7 1.0]] :track/ease :out-cubic}
+      {:track/node :baseline :track/attr :opacity
+       :track/keys [[0.3 0.0] [0.6 0.8]] :track/ease :out-cubic}
+      {:track/node :y-axis :track/attr :opacity
+       :track/keys [[0.3 0.0] [0.6 0.8]] :track/ease :out-cubic}
+      {:track/node :curve :track/attr :progress
+       :track/keys [[draw-t0 0.0] [draw-t1 1.0]] :track/ease :in-out-cubic}
+      {:track/node :end-dot :track/attr :opacity
+       :track/keys [[(- draw-t1 0.1) 0.0] [(+ draw-t1 0.2) 1.0]] :track/ease :out-cubic}
+      {:track/node :end-label :track/attr :opacity
+       :track/keys [[draw-t1 0.0] [(+ draw-t1 0.4) 1.0]] :track/ease :out-cubic}
+      {:track/node :caption :track/attr :opacity
+       :track/keys [[0.6 0.0] [1.0 1.0]] :track/ease :out-cubic}
+      {:track/node :axis-min :track/attr :opacity
+       :track/keys [[0.5 0.0] [0.9 0.7]] :track/ease :out-cubic}
+      {:track/node :axis-max :track/attr :opacity
+       :track/keys [[0.5 0.0] [0.9 0.7]] :track/ease :out-cubic}]}))
+
+;; ---------------------------------------------------------------------------
+;; :flow — a left→right pipeline of boxed steps with arrows drawing between
+;; them (quantize → pack → dequantize …). Steps come from copy role :steps.
+
+(defmethod compile-scene :flow
+  [{:keys [size text]} {:scene/keys [dur] :as _scene}]
+  (let [[w h] size
+        steps (:steps text [])
+        n (max 1 (count steps))
+        gap 60
+        box-w (min 360 (/ (- (* w 0.86) (* gap (dec n))) n))
+        box-h 110
+        total (+ (* n box-w) (* (dec n) gap))
+        x0 (/ (- w total) 2)
+        y (- (/ h 2) (/ box-h 2))
+        cy (/ h 2)
+        step-t (fn [i] (+ 0.2 (* i 0.55)))]
+    {:sg/dur dur
+     :sg/nodes
+     (into [{:node/id :kicker :node/kind :text
+             :node/attrs {:x (* w 0.08) :y (* h 0.12) :text (or (:kicker text) "")
+                          :size :xs-size :fill :alert :spacing 4 :opacity 0}}]
+           (mapcat
+            (fn [i step]
+              (let [bx (+ x0 (* i (+ box-w gap)))
+                    accent? (= i (dec n))]
+                (cond-> [{:node/id (keyword (str "box-" i)) :node/kind :rect
+                          :node/attrs {:x bx :y y :w box-w :h box-h :rx 10
+                                       :fill :panel
+                                       :stroke (if accent? :accent :panel-border)
+                                       :stroke-width (if accent? 2 1.5) :opacity 0}}
+                         {:node/id (keyword (str "step-" i)) :node/kind :text
+                          :node/attrs {:x (+ bx (/ box-w 2)) :y (+ cy 10) :text step
+                                       :size :sm-size :fill (if accent? :accent :ink)
+                                       :anchor "middle" :opacity 0}}]
+                  (pos? i)
+                  (into [{:node/id (keyword (str "arrow-" i)) :node/kind :line
+                          :node/attrs {:x1 (- bx gap) :y1 cy :x2 (- bx gap) :y2 cy
+                                       :stroke :ink-dim :stroke-width 2}}
+                         {:node/id (keyword (str "arrow-head-" i)) :node/kind :path
+                          :node/attrs {:d (str "M " (- bx 8) " " cy " l -14 -7 l 0 14 z")
+                                       :fill :ink-dim :opacity 0}}]))))
+            (range) steps))
+     :sg/tracks
+     (into [{:track/node :kicker :track/attr :opacity
+             :track/keys [[0.0 0.0] [0.4 1.0]] :track/ease :out-cubic}]
+           (mapcat
+            (fn [i _]
+              (let [ts (step-t i)]
+                (cond-> [{:track/node (keyword (str "box-" i)) :track/attr :opacity
+                          :track/keys [[ts 0.0] [(+ ts 0.35) 1.0]] :track/ease :out-cubic}
+                         {:track/node (keyword (str "step-" i)) :track/attr :opacity
+                          :track/keys [[(+ ts 0.1) 0.0] [(+ ts 0.45) 1.0]] :track/ease :out-cubic}]
+                  (pos? i)
+                  (into (let [bx (+ x0 (* i (+ box-w gap)))]
+                          [{:track/node (keyword (str "arrow-" i)) :track/attr :x2
+                            :track/keys [[(- ts 0.25) (- bx gap)] [ts (- bx 16)]]
+                            :track/ease :out-cubic}
+                           {:track/node (keyword (str "arrow-head-" i)) :track/attr :opacity
+                            :track/keys [[(- ts 0.05) 0.0] [(+ ts 0.15) 1.0]]
+                            :track/ease :out-cubic}])))))
+            (range) steps))}))
+
+;; ---------------------------------------------------------------------------
+;; :big-number — one animated figure carrying the scene (4x smaller, 75% less
+;; memory…). The counter interpolates :from → :to; prefix/suffix via args.
+
+(defmethod compile-scene :big-number
+  [{:keys [size text]} {:scene/keys [dur args] :as _scene}]
+  (let [[w h] size
+        {:keys [from to decimals prefix suffix color]} args
+        cx (/ w 2)
+        cy (/ h 2)]
+    {:sg/dur dur
+     :sg/nodes
+     [{:node/id :kicker :node/kind :text
+       :node/attrs {:x (* w 0.08) :y (* h 0.12) :text (or (:kicker text) "")
+                    :size :xs-size :fill :alert :spacing 4 :opacity 0}}
+      {:node/id :figure :node/kind :counter
+       :node/attrs {:x cx :y cy :value (or from 0) :decimals (or decimals 0)
+                    :prefix prefix :suffix suffix :anchor "middle"
+                    :size :xl-size :weight 700 :fill (or color :accent) :opacity 0}}
+      {:node/id :label :node/kind :text
+       :node/attrs {:x cx :y (+ cy 90) :text (or (:label text) "") :anchor "middle"
+                    :size :sm-size :fill :ink-dim :spacing 2 :opacity 0}}]
+     :sg/tracks
+     [{:track/node :kicker :track/attr :opacity
+       :track/keys [[0.0 0.0] [0.4 1.0]] :track/ease :out-cubic}
+      {:track/node :figure :track/attr :opacity
+       :track/keys [[0.2 0.0] [0.6 1.0]] :track/ease :out-cubic}
+      {:track/node :figure :track/attr :value
+       :track/keys [[0.3 (or from 0)] [1.6 (or to 0)]] :track/ease :out-expo}
+      {:track/node :label :track/attr :opacity
+       :track/keys [[0.9 0.0] [1.3 1.0]] :track/ease :out-cubic}]}))
+
+;; ---------------------------------------------------------------------------
 ;; :custom — inline scenegraph passthrough (escape hatch for one-off scenes).
 
 (defmethod compile-scene :custom

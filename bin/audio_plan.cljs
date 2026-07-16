@@ -1,0 +1,20 @@
+(ns audio-plan
+  "nbb: render output dir (manifest.edn + cues.edn) → audio-plan.edn.
+
+     nbb --classpath src bin/audio_plan.cljs /tmp/dougaka-vector/quantization"
+  (:require ["fs" :as fs]
+            ["path" :as path]
+            [clojure.edn :as edn]
+            [dougaka-vector.audio :as audio]))
+
+(let [[dir] *command-line-args*]
+  (when-not dir
+    (println "usage: nbb --classpath src bin/audio_plan.cljs <render-out-dir>")
+    (js/process.exit 2))
+  (let [manifest (edn/read-string (fs/readFileSync (path/join dir "manifest.edn") "utf8"))
+        cues (edn/read-string (fs/readFileSync (path/join dir "cues.edn") "utf8"))
+        plan (audio/plan manifest cues)]
+    (fs/writeFileSync (path/join dir "audio-plan.edn") (pr-str plan))
+    (println "audio-plan ok →" (path/join dir "audio-plan.edn")
+             (str "(" (count (:audio/sfx plan)) " sfx events, "
+                  (:audio/duration plan) "s)"))))
