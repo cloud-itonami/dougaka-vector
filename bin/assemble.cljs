@@ -7,7 +7,10 @@
      nbb --classpath src bin/assemble.cljs <render-out-dir> --out video.mp4 \\
          [--bgm bgm.mp3] [--sfx-dir sfx/]     ; sfx-dir holds <kind>.wav files
 
-   SFX events come from audio-plan.edn (run bin/audio_plan.cljs first)."
+   SFX events come from audio-plan.edn (run bin/audio_plan.cljs first).
+   NOTE: --bgm must be at least as long as the video — amix uses
+   duration=first (the video-derived track), but if the bgm is shorter the
+   mixed audio ends early; keep bgm ≥ manifest duration (fps * frame/count)."
   (:require ["fs" :as fs]
             ["path" :as path]
             ["child_process" :as cp]
