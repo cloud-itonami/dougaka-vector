@@ -54,15 +54,17 @@ nbb --classpath src bin/audio_plan.cljs /tmp/dougaka-vector/quantization
 nbb --classpath src bin/assemble.cljs /tmp/dougaka-vector/quantization \
     --out quantization-ja.mp4 [--bgm bgm.wav] [--sfx-dir sfx/]  # sfx/<kind>.wav
 
-# 4) publish — aozora.app が主、作品 = 1 actor DID。self-sovereign CACAO なので
+# 4) publish — aozora.app が主、作者 = 1 actor DID。self-sovereign CACAO なので
 #    owner creds 不要（agent 単独実行可）。データは kotobase.net(yoro-social) に
 #    自動で載る（aozora PDS の backing store）。
 nbb --classpath src:../../kotoba-lang/kotobase-client/src bin/publish.cljs \
     /tmp/dougaka-vector/quantization --mp4 quantization-ja.mp4 --locale ja \
-    [--handle-domain aozora.app] [--keyring .dougaka-vector-keyring] [--dry-run]
-#    → 作品専用の did:key を発行（keyring に永続）→ createAccount(<slug>.aozora.app)
-#      → uploadBlob(mp4) → actor profile(self) + video post(app.aozora.embed.video)
-#      + 自前 catalog(app.gftd.dougakaVector.video) を createRecord
+    [--handle dougaka-vector.aozora.app] [--identity .dougaka-vector/identity.edn] [--dry-run]
+#    → dougaka-vector 作者の単一 did:key を load/create（.dougaka-vector/identity.edn に永続）
+#      → createAccount(dougaka-vector.aozora.app) → uploadBlob(mp4)
+#      → author profile(self, idempotent putRecord)
+#      → その DID 配下に video post(app.aozora.embed.video, rkey=<work-slug>)
+#      + catalog(app.gftd.dougakaVector.video, rkey=<work-slug>) を putRecord
 
 # 5) youtube 連携投稿 — aozora record からの syndication（YouTube は主ではない）。
 #    operator OAuth 注入（YOUTUBE_CLIENT_ID/_SECRET/_REFRESH_TOKEN）が要る。
@@ -72,11 +74,13 @@ nbb --classpath src:../../kotoba-lang/kotobase-client/src bin/youtube.cljs \
 #      （aozora が canonical source、YouTube はその複製という join を張る）
 ```
 
-**作品 = 1 actor DID の意味**: 1 video work ごとに新規 Ed25519 seed → did:key を発行し
-（`.dougaka-vector-keyring/<slug>.edn` に gitignore 永続、再 publish は同一 DID を再利用）、
-その DID 自身の aozora account + handle + actor profile を持つ。認証は depth-1 self-mint
-CACAO（`kotobase.cacao`）で、owner の token/grant は不要。3D は扱わない repo なので publish
-経路も 2D vector 動画専用。
+**作者 = 1 actor DID の意味**: dougaka-vector チャンネルは **1 つの atproto author**（単一
+did:key + aozora account + handle `dougaka-vector.aozora.app` + actor profile）。各 video work は
+その DID 配下の **record**（`app.bsky.feed.post` + `app.gftd.dougakaVector.video`、rkey=作品 slug）
+で、作品が増えれば同じ DID 配下に post が増える。author seed は `.dougaka-vector/identity.edn`
+に gitignore 永続。認証は depth-1 self-mint CACAO（`kotobase.cacao`）で owner の token/grant 不要。
+これは確立モデル（dougaka-actor / syosetsuka も 1 author DID + works as records）と同型。3D は
+扱わない repo なので publish 経路も 2D vector 動画専用。
 
 ## Layout
 

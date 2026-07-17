@@ -18,9 +18,11 @@
     (is (= (pub/work-slug "SQL Injection 2026!")
            (pub/work-slug (pub/work-slug "SQL Injection 2026!"))))))
 
-(deftest handle-derivation
-  (is (= "sql-injection-2026.aozora.app" (pub/handle "SQL Injection 2026!")))
-  (is (= "sql-injection-2026.v.aozora.app" (pub/handle "SQL Injection 2026!" "v.aozora.app"))))
+(deftest author-channel-is-single-identity
+  (testing "作者 = 1 DID: one channel handle/profile, not per-work"
+    (is (= "dougaka-vector.aozora.app" (:handle pub/channel)))
+    (is (string? (:display-name pub/channel)))
+    (is (string? (:description pub/channel)))))
 
 (deftest title-summary-from-storyboard
   (is (= "The SQL Injection Paradox" (pub/work-title sb :en)))

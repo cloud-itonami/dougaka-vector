@@ -3,11 +3,14 @@
    (the AT Protocol boundary; its PDS backs onto kotobase.net, so records land
    there automatically) and for syndicating to YouTube.
 
-   Model (owner decision, 2026-07-17): 作品 = 1 actor DID. Each video work gets
-   its own Ed25519 did:key (minted per work, self-sovereign CACAO — no owner
-   creds), its own aozora account+handle, and its own actor profile. aozora is
-   the primary surface; YouTube is a syndication of the same work FROM the
-   aozora record.
+   Model (owner decision, 2026-07-17, corrected): 作者 = 1 actor DID. The
+   dougaka-vector channel is ONE atproto author with a single Ed25519 did:key,
+   one aozora account+handle, and one actor profile (self). Each video WORK is a
+   record UNDER that author DID: an app.bsky.feed.post (with the video embed)
+   plus a catalog datom, keyed by the work slug. aozora is the primary surface;
+   YouTube is a syndication of a work FROM its aozora record. (This is the
+   established model — dougaka-actor and syosetsuka both use one author DID with
+   works as records, not a DID per work.)
 
    This ns is IO-free and runtime-portable so it is testable under nbb without
    network. The CACAO self-mint + XRPC fetch + blob bytes live in
@@ -15,11 +18,23 @@
    (ai-gftd-dougaka-kodomo/tools/publish_aozora.cljs)."
   (:require [clojure.string :as str]))
 
-;; ── identity / handle ───────────────────────────────────────────────────────
+;; ── author (channel) identity ────────────────────────────────────────────────
+
+(def channel
+  "The single dougaka-vector author/channel. One DID owns every work's records.
+   Handle/name/description overridable via bin/publish.cljs opts."
+  {:handle "dougaka-vector.aozora.app"
+   :display-name "動画家ベクター (dougaka-vector)"
+   :description (str "言語・キャラクター非依存のベクターアニメーション解説。"
+                     "黒背景・ネオンのモーショングラフィックスで技術トピックを図解します。"
+                     "ai-gftd-dougaka-vector で自動生成。")})
+
+;; ── slugs ────────────────────────────────────────────────────────────────────
 
 (defn work-slug
-  "video-id → a DNS-label-safe slug for handles/rkeys: lowercase, [a-z0-9-],
-   collapsed dashes, trimmed, ≤63 chars."
+  "video-id → a DNS/rkey-safe slug: lowercase, [a-z0-9-], collapsed dashes,
+   trimmed, ≤63 chars. Used for a work's feed.post/catalog rkey under the
+   single author DID."
   [work-id]
   (let [s (-> (str work-id)
               str/lower-case
@@ -27,12 +42,6 @@
               (str/replace #"-+" "-")
               (str/replace #"^-|-$" ""))]
     (subs s 0 (min 63 (count s)))))
-
-(defn handle
-  "Per-work aozora handle: <slug>.<domain> (domain default aozora.app).
-   One handle per work is the 作品=1 DID surface name."
-  ([work-id] (handle work-id "aozora.app"))
-  ([work-id domain] (str (work-slug work-id) "." domain)))
 
 ;; ── copy extraction from a compiled/rendered work ────────────────────────────
 
@@ -61,8 +70,9 @@
 ;; ── aozora records ───────────────────────────────────────────────────────────
 
 (defn profile-record
-  "app.bsky.actor.profile (rkey \"self\") — the per-work actor's profile.
-   aozora has no app.aozora.actor.profile lexicon; profiles are standard bsky."
+  "app.bsky.actor.profile (rkey \"self\") — the dougaka-vector AUTHOR/channel
+   profile (one per DID, idempotent). aozora has no app.aozora.actor.profile
+   lexicon; profiles are standard bsky."
   [{:keys [display-name description]}]
   {:$type "app.bsky.actor.profile"
    :displayName display-name

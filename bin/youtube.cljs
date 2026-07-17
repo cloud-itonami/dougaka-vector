@@ -11,7 +11,7 @@
 
    Run:
      nbb --classpath src:../../kotoba-lang/kotobase-client/src bin/youtube.cljs \\
-       <render-out-dir> --mp4 <file.mp4> --locale ja --keyring .dougaka-vector-keyring \\
+       <render-out-dir> --mp4 <file.mp4> --locale ja --identity .dougaka-vector/identity.edn \\
        [--dry-run]
 
    Resumable upload implemented directly over node fetch (com-youtube is a JVM
@@ -32,14 +32,14 @@
 (def upload-url "https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status")
 
 (defn- parse-args [argv]
-  (loop [args argv opts {:locale :en :keyring ".dougaka-vector-keyring" :dry-run false}]
+  (loop [args argv opts {:locale :en :identity ".dougaka-vector/identity.edn" :dry-run false}]
     (if (empty? args) opts
         (let [[a & more] args]
           (case a
             "--mp4"        (recur (rest more) (assoc opts :mp4 (first more)))
             "--locale"     (recur (rest more) (assoc opts :locale (keyword (first more))))
             "--storyboard" (recur (rest more) (assoc opts :storyboard (first more)))
-            "--keyring"    (recur (rest more) (assoc opts :keyring (first more)))
+            "--identity"   (recur (rest more) (assoc opts :identity (first more)))
             "--dry-run"    (recur more (assoc opts :dry-run true))
             (recur more (assoc opts :dir a)))))))
 
@@ -79,15 +79,14 @@
           j (.json put)]
     (or (.-id j) (throw (js/Error. (str "upload put failed: " (js/JSON.stringify j)))))))
 
-;; reuse publish.cljs's identity + context loaders by re-deriving here (keyring EDN)
+;; load the single dougaka-vector author identity (the same file publish.cljs uses)
 (defn- unhex [h] (js/Uint8Array.from (map #(js/parseInt (apply str %) 16) (partition 2 h))))
 
-(defn- load-identity [keyring work-id]
-  (let [f (path/join keyring (str (pub/work-slug work-id) ".edn"))]
-    (when-not (fs/existsSync f)
-      (throw (js/Error. (str "no keyring identity for " work-id " — publish to aozora first"))))
-    (let [m (edn/read-string (fs/readFileSync f "utf8"))]
-      (assoc m :seed (unhex (:seed-hex m))))))
+(defn- load-identity [identity-path]
+  (when-not (fs/existsSync identity-path)
+    (throw (js/Error. (str "no author identity at " identity-path " — publish to aozora first"))))
+  (let [m (edn/read-string (fs/readFileSync identity-path "utf8"))]
+    (assoc m :seed (unhex (:seed-hex m)))))
 
 (defn xrpc! [ep body jwt]
   (p/let [res (js/fetch (str pds "/xrpc/" ep)
@@ -99,9 +98,9 @@
     (js->clj j :keywordize-keys true)))
 
 (defn -main [& argv]
-  (let [{:keys [dir mp4 locale keyring dry-run storyboard]} (parse-args argv)]
+  (let [{:keys [dir mp4 locale identity dry-run storyboard]} (parse-args argv)]
     (when-not dir
-      (println "usage: nbb --classpath src:<kotobase-client>/src bin/youtube.cljs <render-out-dir> --mp4 <file> [--locale ja] [--keyring dir] [--dry-run]")
+      (println "usage: nbb --classpath src:<kotobase-client>/src bin/youtube.cljs <render-out-dir> --mp4 <file> [--locale ja] [--identity path] [--dry-run]")
       (js/process.exit 2))
     (let [manifest (edn/read-string (fs/readFileSync (path/join dir "manifest.edn") "utf8"))
           work-id (:video/id manifest)
@@ -109,7 +108,7 @@
           sb (when (fs/existsSync sb-path) (edn/read-string (fs/readFileSync sb-path "utf8")))
           title (if sb (pub/work-title sb locale) work-id)
           summary (if sb (pub/work-summary sb locale) work-id)
-          id (load-identity keyring work-id)
+          id (load-identity identity)
           desc (pub/youtube-description {:summary summary :handle (:handle id)})
           metadata (pub/youtube-metadata {:title title :description desc :lang (name locale)
                                           :privacy (or (env "YOUTUBE_PRIVACY_STATUS") "public")
