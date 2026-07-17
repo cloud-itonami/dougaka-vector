@@ -91,6 +91,9 @@
                                    :frame/pattern (if resvg "frames/%06d.png" "frames/%06d.svg")
                                    :scenes (:scenes result)}))
         (fs/writeFileSync (path/join out "cues.edn") (pr-str (:cues result)))
+        ;; persist the source storyboard so bin/publish.cljs can derive the
+        ;; work's title/summary/copy for the aozora actor profile + youtube meta
+        (fs/writeFileSync (path/join out "storyboard.edn") (pr-str sb))
         (println "rendered" (:frame result) "frames →" frames-dir
                  (str "(" (if resvg "svg+png" "svg only") ", locale " (name locale) ")"))))))
 

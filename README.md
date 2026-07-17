@@ -54,9 +54,29 @@ nbb --classpath src bin/audio_plan.cljs /tmp/dougaka-vector/quantization
 nbb --classpath src bin/assemble.cljs /tmp/dougaka-vector/quantization \
     --out quantization-ja.mp4 [--bgm bgm.wav] [--sfx-dir sfx/]  # sfx/<kind>.wav
 
-# 4) publish — yukkuri の exec パターンを転用: `kotoba-lang/com-youtube` +
-#    operator 注入 OAuth（client-id/secret/refresh-token）。本 repo に複製しない。
+# 4) publish — aozora.app が主、作品 = 1 actor DID。self-sovereign CACAO なので
+#    owner creds 不要（agent 単独実行可）。データは kotobase.net(yoro-social) に
+#    自動で載る（aozora PDS の backing store）。
+nbb --classpath src:../../kotoba-lang/kotobase-client/src bin/publish.cljs \
+    /tmp/dougaka-vector/quantization --mp4 quantization-ja.mp4 --locale ja \
+    [--handle-domain aozora.app] [--keyring .dougaka-vector-keyring] [--dry-run]
+#    → 作品専用の did:key を発行（keyring に永続）→ createAccount(<slug>.aozora.app)
+#      → uploadBlob(mp4) → actor profile(self) + video post(app.aozora.embed.video)
+#      + 自前 catalog(app.gftd.dougakaVector.video) を createRecord
+
+# 5) youtube 連携投稿 — aozora record からの syndication（YouTube は主ではない）。
+#    operator OAuth 注入（YOUTUBE_CLIENT_ID/_SECRET/_REFRESH_TOKEN）が要る。
+nbb --classpath src:../../kotoba-lang/kotobase-client/src bin/youtube.cljs \
+    /tmp/dougaka-vector/quantization --mp4 quantization-ja.mp4 --locale ja [--dry-run]
+#    → mp4 を YouTube に upload → youtubeUrl を aozora catalog に putRecord で書き戻す
+#      （aozora が canonical source、YouTube はその複製という join を張る）
 ```
+
+**作品 = 1 actor DID の意味**: 1 video work ごとに新規 Ed25519 seed → did:key を発行し
+（`.dougaka-vector-keyring/<slug>.edn` に gitignore 永続、再 publish は同一 DID を再利用）、
+その DID 自身の aozora account + handle + actor profile を持つ。認証は depth-1 self-mint
+CACAO（`kotobase.cacao`）で、owner の token/grant は不要。3D は扱わない repo なので publish
+経路も 2D vector 動画専用。
 
 ## Layout
 
@@ -70,6 +90,9 @@ nbb --classpath src bin/assemble.cljs /tmp/dougaka-vector/quantization \
 | `src/dougaka_vector/theme.cljc` | design tokens（`:cyber-dark`） |
 | `src/dougaka_vector/storyboard.cljc` | storyboard 生成の純関数部（prompt 契約 / EDN 抽出 / 検証 feedback） |
 | `src/dougaka_vector/audio.cljc` | cues → audio-plan（SFX ルール / coalesce / ongakuka BGM 依頼仕様） |
+| `src/dougaka_vector/publish.cljc` | publish の純関数部（work-slug/handle / profile・video・catalog record / youtube metadata） |
+| `bin/publish.cljs` | nbb CLI（作品=1 DID keyring → aozora account+profile+video post+catalog、`--dry-run`） |
+| `bin/youtube.cljs` | nbb CLI（aozora record → YouTube 連携投稿 → youtubeUrl を catalog に書き戻し） |
 | `bin/render.cljs` | nbb CLI（frames + manifest.edn + cues.edn、`--font-dir`/`--no-system-fonts`） |
 | `bin/storyboard.cljs` | nbb CLI（topic → 検証済み storyboard EDN、retry loop、`--mock`） |
 | `bin/audio_plan.cljs` | nbb CLI（render 出力 dir → audio-plan.edn） |
