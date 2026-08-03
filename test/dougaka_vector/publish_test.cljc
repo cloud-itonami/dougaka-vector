@@ -66,3 +66,41 @@
                        "at://p"))
     (is (str/includes? (pub/youtube-description {:summary "S" :handle "h.aozora.app"})
                        "aozora.app"))))
+
+;; ── news works (produced from a kotoba-lang/newsfeed brief) ──────────────────
+
+(deftest news-post-text-names-its-source
+  (let [t (pub/news-post-text {:title "THE LONG-CONTEXT BOTTLENECK"
+                               :lead-source "NVIDIA Technical Blog"
+                               :lead-url "https://developer.nvidia.com/blog/x"
+                               :also-count 5})]
+    (is (str/includes? t "『THE LONG-CONTEXT BOTTLENECK』"))
+    (is (str/includes? t "NVIDIA Technical Blog"))
+    (is (str/includes? t "https://developer.nvidia.com/blog/x")
+        "a news post without its source url is an unsourced claim on the timeline")
+    (is (str/includes? t "(+5 more)")))
+  (testing "no corroboration means no misleading count"
+    (is (not (str/includes? (pub/news-post-text {:title "T" :lead-source "S"
+                                                 :lead-url "https://u" :also-count 0})
+                            "more)")))))
+
+(deftest news-post-text-never-truncates-the-url
+  (let [url "https://example.com/a/very/long/path/that/must/survive/intact"
+        t (pub/news-post-text {:title (apply str (repeat 400 "x"))
+                               :lead-source "S" :lead-url url :also-count 0})]
+    (is (<= (count t) 300) "atproto post limit")
+    (is (str/includes? t url)
+        "a cut url looks like a citation and resolves to nothing — worse than none")
+    (is (str/includes? t "…") "the title is what gives way")))
+
+(deftest catalog-record-carries-citations
+  (let [cites [{:cite/id "art-1" :cite/url "https://a" :cite/source "S1"}
+               {:cite/id "art-2" :cite/url "https://b" :cite/source "S2"}]
+        base {:work-id "w" :title "T" :summary "S" :locale :en :src "u" :blob-cid "c"
+              :post-uri "at://x" :fps 30 :duration-sec 19.0 :created-at "2026"}
+        plain (pub/catalog-record base)
+        news (pub/catalog-record (assoc base :topic "Some headline" :citations cites))]
+    (is (not (contains? plain :citations)) "a non-news work carries none")
+    (is (= 2 (count (:citations news))))
+    (is (= "Some headline" (:topic news))
+        "the brief's topic, so a governor can check cites ⊆ ingested")))

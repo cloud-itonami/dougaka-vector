@@ -42,6 +42,9 @@
           "--locale"     (recur (rest more) (assoc opts :locale (keyword (first more))))
           "--storyboard" (recur (rest more) (assoc opts :storyboard (first more)))
           "--handle"     (recur (rest more) (assoc opts :handle (first more)))
+          "--display-name" (recur (rest more) (assoc opts :display-name (first more)))
+          "--description"  (recur (rest more) (assoc opts :description (first more)))
+          "--brief"        (recur (rest more) (assoc opts :brief (first more)))
           "--identity"   (recur (rest more) (assoc opts :identity (first more)))
           "--dry-run"    (recur more (assoc opts :dry-run true))
           "--youtube"    (recur more (assoc opts :youtube true))
@@ -105,20 +108,37 @@
      :duration dur :mp4 (or mp4 (path/join dir (str work-id ".mp4")))}))
 
 (defn -main [& argv]
-  (let [{:keys [dir locale dry-run youtube identity handle] :as opts} (parse-args argv)]
+  (let [{:keys [dir locale dry-run youtube identity handle display-name description brief]
+         :as opts} (parse-args argv)]
     (when-not dir
-      (println "usage: nbb --classpath src:<kotobase-client>/src bin/publish.cljs <render-out-dir> --mp4 <file> [--locale ja] [--handle dougaka-vector.aozora.app] [--identity path] [--dry-run] [--youtube]")
+      (println "usage: nbb --classpath src:<kotobase-client>/src bin/publish.cljs <render-out-dir> --mp4 <file> [--locale ja] [--handle dougaka-vector.aozora.app] [--identity path] [--display-name s] [--description s] [--brief brief.edn] [--dry-run] [--youtube]")
       (js/process.exit 2))
     (let [{:keys [work-id title summary duration manifest mp4]} (load-context opts)
+          ;; A newsfeed brief (kotoba-lang/newsfeed bin/digest.cljs --out). When
+          ;; present the post names its lead source and the catalog record
+          ;; carries every citation.
+          brief (when brief (edn/read-string (fs/readFileSync brief "utf8")))
+          lead (:brief/lead brief)
           slug (pub/work-slug work-id)
           id (load-or-create-author-identity! identity handle)
           now (.toISOString (js/Date.))
           mint #(:cacao-b64 (cacao/mint-cacao {:secret-key (:seed id) :aud aud
                                                :capability "account:session"
                                                :graph (:did id) :ttl-sec 300}))
+          ;; The channel identity is per-run, not per-repo. Publishing a
+          ;; murakumo or kotobase news work under dougaka-vector's own name and
+          ;; description would misattribute it — one repo now drives more than
+          ;; one channel, and the handle alone is not the identity.
           profile (pub/profile-record
-                   {:display-name (:display-name pub/channel)
-                    :description (:description pub/channel)})]
+                   {:display-name (or display-name (:display-name pub/channel))
+                    :description (or description (:description pub/channel))})
+          post-text (if lead
+                      (pub/news-post-text
+                       {:title title
+                        :lead-source (:cite/source lead)
+                        :lead-url (:cite/url lead)
+                        :also-count (max 0 (dec (count (:brief/citations brief))))})
+                      (str "『" title "』"))]
       (println "author did  :" (:did id) "(作者=1 DID)")
       (println "handle      :" (:handle id))
       (println "work        :" work-id "→ rkey" slug)
@@ -129,14 +149,16 @@
           (println "createAccount body   :" (pr-str {:handle (:handle id) :cacao_b64 "<cacao>"}))
           (println "author profile (self):" (pr-str profile))
           (println "video post" slug ":" (pr-str (pub/video-post-record
-                                                  {:text (str "『" title "』") :src (str pds "/xrpc/com.atproto.sync.getBlob?cid=<cid>")
+                                                  {:text post-text :src (str pds "/xrpc/com.atproto.sync.getBlob?cid=<cid>")
                                                    :blob {:$type "blob" :ref {:$link "<cid>"} :mimeType "video/mp4"}
                                                    :alt title :created-at now})))
           (println "catalog" slug "     :" (pr-str (pub/catalog-record
                                                    {:work-id work-id :title title :summary summary
                                                     :locale locale :src "<src>" :blob-cid "<cid>"
                                                     :post-uri "<at-uri>" :fps (:fps manifest)
-                                                    :duration-sec duration :created-at now})))
+                                                    :duration-sec duration :created-at now
+                                                    :topic (:brief/topic brief)
+                                                    :citations (:brief/citations brief)})))
           (when youtube
             (println "youtube metadata     :" (pr-str (pub/youtube-metadata
                                                       {:title title
@@ -163,12 +185,14 @@
                 post (xrpc! "com.atproto.repo.putRecord"
                             {:repo rdid :collection "app.bsky.feed.post" :rkey slug
                              :record (pub/video-post-record
-                                      {:text (str "『" title "』") :src src :blob blob
+                                      {:text post-text :src src :blob blob
                                        :alt title :created-at now})} jwt)
                 catalog (pub/catalog-record
                          {:work-id work-id :title title :summary summary :locale locale
                           :src src :blob-cid blob-cid :post-uri (:uri post)
-                          :fps (:fps manifest) :duration-sec duration :created-at now})
+                          :fps (:fps manifest) :duration-sec duration :created-at now
+                          :topic (:brief/topic brief)
+                          :citations (:brief/citations brief)})
                 _ (xrpc! "com.atproto.repo.putRecord"
                          {:repo rdid :collection pub/catalog-collection :rkey slug :record catalog} jwt)]
           (println "\naozora published (under author DID):")

@@ -78,6 +78,36 @@
    :displayName display-name
    :description description})
 
+(defn news-post-text
+  "Post text for a work produced from a newsfeed brief: the work's title, then
+   the lead source and its url.
+
+   A news video whose post does not name a source is an unsourced claim on the
+   timeline. The full citation list goes in the catalog record, but nobody
+   scrolling the feed reads catalog records — so the lead one has to be here.
+
+   Clamped to `limit` graphemes (atproto's post limit is 300). The URL is
+   never truncated: a cut url is worse than no url, because it looks like a
+   citation and resolves to nothing. If the whole thing will not fit, the
+   title gives way first, then the source name, and the url always survives."
+  [{:keys [title lead-source lead-url also-count limit]
+    :or {limit 300}}]
+  (let [url (some-> lead-url str not-empty)
+        also (when (and also-count (pos? also-count))
+               (str " (+" also-count " more)"))
+        src-line (str "Source: " lead-source also)
+        tail (str "\n" src-line (when url (str "\n" url)))
+        head (str "『" title "』")
+        room (- limit (count tail))]
+    (if (>= room (count head))
+      (str head tail)
+      ;; Title gives way. If even the tail alone does not fit, drop the source
+      ;; name rather than the url.
+      (let [short-head (when (> room 4) (str "『" (subs title 0 (max 0 (- room 3))) "…』"))]
+        (if short-head
+          (str short-head tail)
+          (str (when url (str url))))))))
+
 (defn video-post-record
   "app.bsky.feed.post carrying an app.aozora.embed.video direct-URL embed —
    exactly the shape aozora /videos plays (VOD: :src = getBlob URL)."
@@ -104,7 +134,7 @@
    uri + blob src and, once syndicated, the YouTube url — the join point that
    makes YouTube a syndication OF the aozora record, not a parallel publish."
   [{:keys [work-id title summary locale src blob-cid post-uri youtube-url
-           fps duration-sec created-at]}]
+           fps duration-sec created-at topic citations]}]
   (cond-> {:$type catalog-collection
            :workId work-id
            :title title
@@ -116,7 +146,12 @@
            :fps fps
            :durationSec duration-sec
            :createdAt created-at}
-    youtube-url (assoc :youtubeUrl youtube-url)))
+    youtube-url (assoc :youtubeUrl youtube-url)
+    ;; A work produced from a newsfeed brief carries the sources it was made
+    ;; from. The post text can only name the lead one, so this is where the
+    ;; full list lives and where a governor can check cites ⊆ ingested.
+    topic (assoc :topic topic)
+    (seq citations) (assoc :citations (vec citations))))
 
 ;; ── youtube syndication metadata ─────────────────────────────────────────────
 
