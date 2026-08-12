@@ -5,3 +5,4 @@ out/
 *.mp4
 *.png
 .dougaka-vector/
+.youtube-session.edn

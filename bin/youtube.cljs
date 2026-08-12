@@ -16,7 +16,15 @@
 
    Resumable upload implemented directly over node fetch (com-youtube is a JVM
    byte[] lib; this repo is nbb-first, so the HTTP flow is reimplemented per the
-   repo runtime priority rather than shelling to the JVM)."
+   repo runtime priority rather than shelling to the JVM).
+
+   Ordering (ADR-2608124600): the catalog is read first so an already-syndicated
+   work is never uploaded twice; the write session is opened BEFORE the upload
+   so a refused CACAO cannot strand a public video with no record; and the
+   resumable session URL is persisted to <dir>/.youtube-session.edn before any
+   bytes are committed, so an interrupted upload can be queried and resumed
+   instead of restarted. The decision order lives in dougaka-vector.youtube and
+   is tested there; this file supplies the effects."
   (:require ["fs" :as fs]
             ["path" :as path]
             ["@noble/curves/ed25519.js" :refer [ed25519]]
@@ -24,7 +32,8 @@
             [promesa.core :as p]
             [kotobase.cacao :as cacao]
             [kotobase.cid :as cid]
-            [dougaka-vector.publish :as pub]))
+            [dougaka-vector.publish :as pub]
+            [dougaka-vector.youtube :as yt]))
 
 (def pds "https://pds.aozora.app")
 (def aud "did:web:aozora.app")
@@ -63,21 +72,75 @@
     (or (.-access_token j)
         (throw (js/Error. (str "token refresh failed: " (js/JSON.stringify j)))))))
 
-(defn insert-video! [access-token metadata mp4-path]
+(defn open-upload-session!
+  "Open the resumable session. YouTube returns its URL before it will accept a
+   single byte — that URL is the only handle that can name the upload
+   afterwards, so the caller persists it before uploading anything."
+  [access-token metadata mp4-path]
   (p/let [init (js/fetch upload-url
                          (clj->js {:method "POST"
                                    :headers {"authorization" (str "Bearer " access-token)
                                              "content-type" "application/json; charset=UTF-8"
                                              "x-upload-content-type" "video/mp4"}
                                    :body (js/JSON.stringify (clj->js metadata))}))
-          loc (.get (.-headers init) "location")
-          _ (when-not loc (p/let [t (.text init)] (throw (js/Error. (str "upload init failed: " t)))))
-          bytes (fs/readFileSync mp4-path)
-          put (js/fetch loc (clj->js {:method "PUT"
-                                      :headers {"content-type" "video/mp4"}
-                                      :body bytes}))
+          loc (.get (.-headers init) "location")]
+    (if loc
+      {:url loc :total (.-size (fs/statSync mp4-path))}
+      (p/let [t (.text init)] {:error (str "upload init failed: " t)}))))
+
+(defn put-bytes!
+  "PUT the mp4 into an already-open session, optionally resuming."
+  [session-url mp4-path & [{:keys [resume-from]}]]
+  (p/let [bytes (fs/readFileSync mp4-path)
+          total (.-length bytes)
+          from  (or resume-from 0)
+          body  (if (pos? from) (.subarray bytes from) bytes)
+          put (js/fetch session-url
+                        (clj->js {:method "PUT"
+                                  :headers (cond-> {"content-type" "video/mp4"}
+                                             (pos? from)
+                                             (assoc "content-range"
+                                                    (str "bytes " from "-" (dec total) "/" total)))
+                                  :body body}))
           j (.json put)]
-    (or (.-id j) (throw (js/Error. (str "upload put failed: " (js/JSON.stringify j)))))))
+    (if-let [id (.-id j)]
+      {:video-id id}
+      {:error (str "upload put failed: " (js/JSON.stringify j))})))
+
+(defn query-upload-session!
+  "Ask YouTube what became of a session whose outcome was never recorded."
+  [session-url total]
+  (p/let [res (js/fetch session-url
+                        (clj->js {:method "PUT"
+                                  :headers {"content-range" (str "bytes */" total)
+                                            "content-length" "0"}}))
+          status (.-status res)
+          body (p/catch (.json res) (fn [_] nil))]
+    {:status status
+     :body (when body (js->clj body :keywordize-keys true))
+     :range-header (.get (.-headers res) "range")}))
+
+;; ── the resumable session, persisted next to the render output ───────────────
+;; A CLI has no server-side store, so the durable handle lives beside the
+;; artifact it belongs to. Small, inspectable, and removable by hand if an
+;; operator decides to abandon an upload deliberately — which is the point:
+;; the residue is nameable instead of invisible.
+
+(defn- session-path [dir] (path/join dir ".youtube-session.edn"))
+
+(defn load-upload-session [dir]
+  (let [p (session-path dir)]
+    (when (fs/existsSync p)
+      (try (edn/read-string (fs/readFileSync p "utf8"))
+           (catch :default _ nil)))))
+
+(defn save-upload-session! [dir url total]
+  (fs/writeFileSync (session-path dir)
+                    (pr-str {:url url :total total :at (.toISOString (js/Date.))})))
+
+(defn clear-upload-session! [dir]
+  (let [p (session-path dir)]
+    (when (fs/existsSync p) (fs/unlinkSync p))))
 
 ;; load the single dougaka-vector author identity (the same file publish.cljs uses)
 (defn- unhex [h] (js/Uint8Array.from (map #(js/parseInt (apply str %) 16) (partition 2 h))))
@@ -96,6 +159,16 @@
                                   :body (js/JSON.stringify (clj->js body))}))
           j (.json res)]
     (js->clj j :keywordize-keys true)))
+
+(defn xrpc-get!
+  "atproto reads are GETs. Used to ask whether this work is already syndicated
+   before uploading anything — the guard against publishing it twice."
+  [ep params]
+  (p/let [qs (.toString (js/URLSearchParams. (clj->js params)))
+          res (js/fetch (str pds "/xrpc/" ep "?" qs))
+          ok  (.-ok res)
+          j   (when ok (.json res))]
+    (when ok (js->clj j :keywordize-keys true))))
 
 (defn -main [& argv]
   (let [{:keys [dir mp4 locale identity dry-run storyboard]} (parse-args argv)]
@@ -131,23 +204,63 @@
             (js/process.exit 1))
         :else
         (p/let [tok (refresh-token! c)
-                yt-id (insert-video! tok metadata mp4)
-                yt-url (str "https://youtu.be/" yt-id)
-                _ (println "youtube  :" yt-url)
-                ;; write youtubeUrl back into the aozora catalog (syndication join)
-                mint (:cacao-b64 (cacao/mint-cacao {:secret-key (:seed id) :aud aud
-                                                    :capability "account:session" :graph (:did id) :ttl-sec 300}))
-                sess (xrpc! "com.atproto.server.createSession" {:cacao_b64 mint} nil)
-                jwt (:accessJwt sess)
-                rdid (or (:did sess) (:did id))
+                slug (pub/work-slug work-id)
                 dur (/ (:frame/count manifest) (double (:fps manifest)))
-                catalog (pub/catalog-record {:work-id work-id :title title :summary summary
-                                             :locale locale :fps (:fps manifest) :duration-sec dur
-                                             :youtube-url yt-url :created-at (.toISOString (js/Date.))})
-                _ (xrpc! "com.atproto.repo.putRecord"
-                         {:repo rdid :collection pub/catalog-collection :rkey (pub/work-slug work-id)
-                          :record catalog} jwt)]
-          (println "aozora catalog updated with youtubeUrl (syndication linked).")
-          (js/process.exit 0))))))
+                _ (println "privacy :" (get-in metadata [:status :privacyStatus]))
+                res
+                (yt/syndicate!
+                 {;; 1. is this work already on YouTube?
+                  :fetch-catalog
+                  (fn []
+                    (p/let [r (xrpc-get! "com.atproto.repo.getRecord"
+                                         {:repo (:did id)
+                                          :collection pub/catalog-collection
+                                          :rkey slug})]
+                      (:value r)))
+
+                  ;; 2. prove we can write the record BEFORE we publish anything
+                  :open-write-session
+                  (fn []
+                    (p/let [mint (:cacao-b64 (cacao/mint-cacao
+                                              {:secret-key (:seed id) :aud aud
+                                               :capability "account:session"
+                                               :graph (:did id) :ttl-sec 300}))
+                            sess (xrpc! "com.atproto.server.createSession"
+                                        {:cacao_b64 mint} nil)]
+                      {:jwt (:accessJwt sess) :did (or (:did sess) (:did id))}))
+
+                  ;; 3. the resumable handle, persisted before any bytes
+                  :load-upload-session  #(load-upload-session dir)
+                  :save-upload-session  (fn [url total] (save-upload-session! dir url total))
+                  :clear-upload-session #(clear-upload-session! dir)
+                  :query-upload-session query-upload-session!
+                  :open-upload-session  #(open-upload-session! tok metadata mp4)
+
+                  ;; 4. the irreversible effect
+                  :upload (fn [{:keys [session-url resume-from]}]
+                            (put-bytes! session-url mp4 {:resume-from resume-from}))
+
+                  ;; 5. the record the whole thing is a syndication of
+                  :put-catalog
+                  (fn [{:keys [jwt did youtube-url]}]
+                    (xrpc! "com.atproto.repo.putRecord"
+                           {:repo did :collection pub/catalog-collection :rkey slug
+                            :record (pub/catalog-record
+                                     {:work-id work-id :title title :summary summary
+                                      :locale locale :fps (:fps manifest) :duration-sec dur
+                                      :youtube-url youtube-url
+                                      :created-at (.toISOString (js/Date.))})}
+                           jwt))})]
+          (case (:status res)
+            :already-syndicated
+            (do (println "already syndicated:" (:youtube-url res) "— nothing uploaded.")
+                (js/process.exit 0))
+            :syndicated
+            (do (println "youtube  :" (:youtube-url res)
+                         (if (:resumed? res) "(resumed a prior session)" ""))
+                (println "aozora catalog updated with youtubeUrl (syndication linked).")
+                (js/process.exit 0))
+            (do (println "syndication failed:" (:error res))
+                (js/process.exit 1))))))))
 
 (apply -main *command-line-args*)
