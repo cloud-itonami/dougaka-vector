@@ -6,3 +6,4 @@ out/
 *.png
 .dougaka-vector/
 .youtube-session.edn
+.cpcache/
