@@ -7,3 +7,6 @@ out/
 .dougaka-vector/
 .youtube-session.edn
 .cpcache/
+
+# Clojure classpath cache — build output, machine-local.
+.cpcache/
