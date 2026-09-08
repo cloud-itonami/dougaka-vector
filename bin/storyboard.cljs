@@ -14,7 +14,7 @@
         MURAKUMO_API_KEY (required unless --mock; mint per cloud-murakumo
         README: MURAKUMO_TOKEN_SECRET=... clojure -M:token issue <sub> ...)"
   (:require ["fs" :as fs]
-            [clojure.string :as str]
+            [kotoba.lang.text :as str]
             [promesa.core :as p]
             [dougaka-vector.storyboard :as sb]))
 

@@ -1,6 +1,6 @@
 (ns dougaka-vector.core-test
   (:require [clojure.test :refer [deftest is testing]]
-            [clojure.string :as str]
+            [kotoba.lang.text :as str]
             [dougaka-vector.ease :as ease]
             [dougaka-vector.timeline :as timeline]
             [dougaka-vector.spec :as spec]
