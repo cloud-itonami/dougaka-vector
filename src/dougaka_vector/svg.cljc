@@ -3,7 +3,7 @@
    size); no DOM, no browser — frames are rasterized offline (resvg) and
    assembled by ai-gftd-dougaka (ffmpeg). 2D vector output only; 3D is out of
    scope for this repo (kami-engine owns 3D repo-wide)."
-  (:require [clojure.string :as str]
+  (:require [kotoba.lang.text :as str]
             [dougaka-vector.theme :as theme]))
 
 (defn escape [s]

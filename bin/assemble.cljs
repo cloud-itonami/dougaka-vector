@@ -15,7 +15,7 @@
             ["path" :as path]
             ["child_process" :as cp]
             [clojure.edn :as edn]
-            [clojure.string :as str]))
+            [kotoba.lang.text :as str]))
 
 (defn- parse-args [argv]
   (loop [args argv opts {}]

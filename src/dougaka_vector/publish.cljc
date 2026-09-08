@@ -16,7 +16,7 @@
    network. The CACAO self-mint + XRPC fetch + blob bytes live in
    bin/publish.cljs (nbb), mirroring the kotobase-client cljs convention
    (ai-gftd-dougaka-kodomo/tools/publish_aozora.cljs)."
-  (:require [clojure.string :as str]))
+  (:require [kotoba.lang.text :as str]))
 
 ;; ── author (channel) identity ────────────────────────────────────────────────
 
@@ -37,7 +37,7 @@
    single author DID."
   [work-id]
   (let [s (-> (str work-id)
-              str/lower-case
+              str/lower
               (str/replace #"[^a-z0-9]+" "-")
               (str/replace #"-+" "-")
               (str/replace #"^-|-$" ""))]

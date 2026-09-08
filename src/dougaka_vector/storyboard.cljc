@@ -4,7 +4,7 @@
    validation feedback); the HTTP loop lives in bin/storyboard.cljs so these
    functions stay testable offline on every runtime."
   (:require [clojure.edn :as edn]
-            [clojure.string :as str]
+            [kotoba.lang.text :as str]
             [dougaka-vector.spec :as spec]))
 
 (def template-catalog
