@@ -1,7 +1,7 @@
 (ns dougaka-vector.storyboard
   "topic → storyboard EDN generation: the ONLY stage where an LLM is involved.
    This ns holds the pure parts (prompt construction, response extraction,
-   validation feedback); the HTTP loop lives in bin/storyboard.cljs so these
+   validation feedback); the HTTP loop lives in bin/storyboard.cljk so these
    functions stay testable offline on every runtime."
   (:require [clojure.edn :as edn]
             [kotoba.lang.text :as str]

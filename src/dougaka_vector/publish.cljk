@@ -14,7 +14,7 @@
 
    This ns is IO-free and runtime-portable so it is testable under nbb without
    network. The CACAO self-mint + XRPC fetch + blob bytes live in
-   bin/publish.cljs (nbb), mirroring the kotobase-client cljs convention
+   bin/publish.cljk (nbb), mirroring the kotobase-client cljs convention
    (ai-gftd-dougaka-kodomo/tools/publish_aozora.cljs)."
   (:require [kotoba.lang.text :as str]))
 
@@ -22,7 +22,7 @@
 
 (def channel
   "The single dougaka-vector author/channel. One DID owns every work's records.
-   Handle/name/description overridable via bin/publish.cljs opts."
+   Handle/name/description overridable via bin/publish.cljk opts."
   {:handle "dougaka-vector.aozora.app"
    :display-name "動画家ベクター (dougaka-vector)"
    :description (str "言語・キャラクター非依存のベクターアニメーション解説。"

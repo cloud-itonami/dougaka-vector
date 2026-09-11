@@ -4,10 +4,10 @@
    single machine can go storyboard→mp4 without the fleet. It issues exactly
    one ffmpeg invocation and adds no assembly logic of its own.
 
-     nbb --classpath src bin/assemble.cljs <render-out-dir> --out video.mp4 \\
+     nbb --classpath src bin/assemble.cljk <render-out-dir> --out video.mp4 \\
          [--bgm bgm.mp3] [--sfx-dir sfx/]     ; sfx-dir holds <kind>.wav files
 
-   SFX events come from audio-plan.edn (run bin/audio_plan.cljs first).
+   SFX events come from audio-plan.edn (run bin/audio_plan.cljk first).
    NOTE: --bgm must be at least as long as the video — amix uses
    duration=first (the video-derived track), but if the bgm is shorter the
    mixed audio ends early; keep bgm ≥ manifest duration (fps * frame/count)."
@@ -30,7 +30,7 @@
 
 (let [{:keys [dir out bgm sfx-dir]} (parse-args *command-line-args*)]
   (when-not (and dir out)
-    (println "usage: nbb --classpath src bin/assemble.cljs <render-out-dir> --out <video.mp4> [--bgm <file>] [--sfx-dir <dir>]")
+    (println "usage: nbb --classpath src bin/assemble.cljk <render-out-dir> --out <video.mp4> [--bgm <file>] [--sfx-dir <dir>]")
     (js/process.exit 2))
   (let [manifest (edn/read-string (fs/readFileSync (path/join dir "manifest.edn") "utf8"))
         plan-file (path/join dir "audio-plan.edn")

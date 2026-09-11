@@ -10,7 +10,7 @@
      [YOUTUBE_PRIVACY_STATUS=public] [YOUTUBE_CATEGORY_ID=27]
 
    Run:
-     nbb --classpath src:../../kotoba-lang/kotobase-client/src bin/youtube.cljs \\
+     nbb --classpath src:../../kotoba-lang/kotobase-client/src bin/youtube.cljk \\
        <render-out-dir> --mp4 <file.mp4> --locale ja --identity .dougaka-vector/identity.edn \\
        [--dry-run]
 
@@ -173,7 +173,7 @@
 (defn -main [& argv]
   (let [{:keys [dir mp4 locale identity dry-run storyboard]} (parse-args argv)]
     (when-not dir
-      (println "usage: nbb --classpath src:<kotobase-client>/src bin/youtube.cljs <render-out-dir> --mp4 <file> [--locale ja] [--identity path] [--dry-run]")
+      (println "usage: nbb --classpath src:<kotobase-client>/src bin/youtube.cljk <render-out-dir> --mp4 <file> [--locale ja] [--identity path] [--dry-run]")
       (js/process.exit 2))
     (let [manifest (edn/read-string (fs/readFileSync (path/join dir "manifest.edn") "utf8"))
           work-id (:video/id manifest)
