@@ -3,7 +3,7 @@
    @resvg/resvg-js when installed) + manifest.edn/cues.edn for the
    ai-gftd-dougaka ffmpeg assembler.
 
-     nbb --classpath src bin/render.cljk examples/quantization.edn \\
+     kbb --backend sci --classpath src bin/render.cljk examples/quantization.edn \\
          --out /tmp/dougaka-vector/quantization --locale en [--png]
 
    Frames are numbered globally across scenes (%06d) so ffmpeg can consume
@@ -41,7 +41,7 @@
 (defn -main [& argv]
   (let [{:keys [storyboard out locale fps png? font-dirs system-fonts?]} (parse-args argv)]
     (when-not (and storyboard out)
-      (println "usage: nbb --classpath src bin/render.cljk <storyboard.edn> --out <dir>"
+      (println "usage: kbb --backend sci --classpath src bin/render.cljk <storyboard.edn> --out <dir>"
                "[--locale en] [--fps 30] [--png] [--font-dir <dir>]... [--no-system-fonts]")
       (js/process.exit 2))
     (let [sb (edn/read-string (fs/readFileSync storyboard "utf8"))

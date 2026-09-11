@@ -4,7 +4,7 @@
    single machine can go storyboard→mp4 without the fleet. It issues exactly
    one ffmpeg invocation and adds no assembly logic of its own.
 
-     nbb --classpath src bin/assemble.cljk <render-out-dir> --out video.mp4 \\
+     kbb --backend sci --classpath src bin/assemble.cljk <render-out-dir> --out video.mp4 \\
          [--bgm bgm.mp3] [--sfx-dir sfx/]     ; sfx-dir holds <kind>.wav files
 
    SFX events come from audio-plan.edn (run bin/audio_plan.cljk first).
@@ -30,7 +30,7 @@
 
 (let [{:keys [dir out bgm sfx-dir]} (parse-args *command-line-args*)]
   (when-not (and dir out)
-    (println "usage: nbb --classpath src bin/assemble.cljk <render-out-dir> --out <video.mp4> [--bgm <file>] [--sfx-dir <dir>]")
+    (println "usage: kbb --backend sci --classpath src bin/assemble.cljk <render-out-dir> --out <video.mp4> [--bgm <file>] [--sfx-dir <dir>]")
     (js/process.exit 2))
   (let [manifest (edn/read-string (fs/readFileSync (path/join dir "manifest.edn") "utf8"))
         plan-file (path/join dir "audio-plan.edn")

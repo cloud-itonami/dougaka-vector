@@ -3,8 +3,8 @@
   "private": true,
   "description": "Language/character-independent vector-animation video workflow (storyboard EDN -> SVG frames)",
   "scripts": {
-    "test": "nbb --classpath src:test test/run.cljk",
-    "render:example": "nbb --classpath src bin/render.cljk examples/quantization.edn --out /tmp/dougaka-vector/quantization"
+    "test": "kbb --backend sci --classpath src:test test/run.cljk",
+    "render:example": "kbb --backend sci --classpath src bin/render.cljk examples/quantization.edn --out /tmp/dougaka-vector/quantization"
   },
   "optionalDependencies": {
     "@resvg/resvg-js": "^2.6.2"

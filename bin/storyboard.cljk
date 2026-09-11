@@ -3,7 +3,7 @@
    OpenAI-compatible chat endpoint (murakumo.cloud gateway), with a
    validation-feedback retry loop.
 
-     MURAKUMO_API_KEY=... nbb --classpath src bin/storyboard.cljk \\
+     MURAKUMO_API_KEY=... kbb --backend sci --classpath src bin/storyboard.cljk \\
        \"How INT4 quantization breaks\" --out /tmp/sb.edn --locales en,ja
 
    Offline: --mock <file> uses a canned LLM response instead of the network
@@ -12,7 +12,7 @@
    env: MURAKUMO_URL   (default https://murakumo.cloud/api/v1)
         MURAKUMO_MODEL (default qwen-agentworld-35b-a3b)
         MURAKUMO_API_KEY (required unless --mock; mint per cloud-murakumo
-        README: MURAKUMO_TOKEN_SECRET=... clojure -M:token issue <sub> ...)"
+        README: MURAKUMO_TOKEN_SECRET=... kbb -M:token issue <sub> ...)"
   (:require ["fs" :as fs]
             [kotoba.lang.text :as str]
             [promesa.core :as p]
@@ -83,7 +83,7 @@
 
 (let [{:keys [topic out attempts] :as opts} (parse-args *command-line-args*)]
   (when-not (and topic out)
-    (println "usage: nbb --classpath src bin/storyboard.cljk <topic> --out <file.edn>"
+    (println "usage: kbb --backend sci --classpath src bin/storyboard.cljk <topic> --out <file.edn>"
              "[--locales en,ja] [--max-dur 60] [--attempts 3] [--mock <raw-llm-output-file>]")
     (js/process.exit 2))
   (p/let [storyboard (attempt! opts (sb/messages topic opts) attempts)]
