@@ -10,11 +10,11 @@
 
    Run (needs kotobase-client src + @noble/@ipld on the classpath/node path):
      nbb --classpath src:../../kotoba-lang/kotobase-client/src \\
-       bin/publish.cljs <render-out-dir> --mp4 <file.mp4> --locale ja \\
+       bin/publish.cljk <render-out-dir> --mp4 <file.mp4> --locale ja \\
        [--identity .dougaka-vector/identity.edn] [--handle dougaka-vector.aozora.app] \\
        [--dry-run] [--youtube]
 
-   <render-out-dir> is a bin/render.cljs output dir (has manifest.edn); the
+   <render-out-dir> is a bin/render.cljk output dir (has manifest.edn); the
    storyboard is read from manifest's sibling or --storyboard.
 
    --dry-run prints the author DID/handle and every XRPC/YouTube request body
@@ -111,7 +111,7 @@
   (let [{:keys [dir locale dry-run youtube identity handle display-name description brief]
          :as opts} (parse-args argv)]
     (when-not dir
-      (println "usage: nbb --classpath src:<kotobase-client>/src bin/publish.cljs <render-out-dir> --mp4 <file> [--locale ja] [--handle dougaka-vector.aozora.app] [--identity path] [--display-name s] [--description s] [--brief brief.edn] [--dry-run] [--youtube]")
+      (println "usage: nbb --classpath src:<kotobase-client>/src bin/publish.cljk <render-out-dir> --mp4 <file> [--locale ja] [--handle dougaka-vector.aozora.app] [--identity path] [--display-name s] [--description s] [--brief brief.edn] [--dry-run] [--youtube]")
       (js/process.exit 2))
     (let [{:keys [work-id title summary duration manifest mp4]} (load-context opts)
           ;; A newsfeed brief (kotoba-lang/newsfeed bin/digest.cljs --out). When
@@ -202,7 +202,7 @@
           (println "  catalog  :" pub/catalog-collection "/" slug)
           (println "  data     : kotobase.net (yoro-social, via aozora PDS)")
           (if youtube
-            (println "\n--youtube: run bin/youtube.cljs with this work + OAuth env to syndicate FROM the aozora record (writes youtubeUrl back into the catalog).")
+            (println "\n--youtube: run bin/youtube.cljk with this work + OAuth env to syndicate FROM the aozora record (writes youtubeUrl back into the catalog).")
             (println "\n(YouTube syndication skipped; pass --youtube + OAuth env to enable.)"))
           (js/process.exit 0))))))
 

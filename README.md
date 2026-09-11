@@ -31,10 +31,10 @@ topic ──▶ storyboard EDN ──▶ scenegraph ──▶ SVG frames ──�
 
 ```bash
 # test（nbb / 第一級 runtime は ClojureScript。JVM 不要）
-nbb --classpath src:test test/run.cljs
+nbb --classpath src:test test/run.cljk
 
 # 0) storyboard 生成（唯一の LLM ステージ。murakumo.cloud OpenAI 互換 gateway）
-MURAKUMO_API_KEY=... nbb --classpath src bin/storyboard.cljs \
+MURAKUMO_API_KEY=... nbb --classpath src bin/storyboard.cljk \
     "How INT4 quantization breaks" --out sb.edn --locales en,ja
 #    token は cloud-murakumo README の `clojure -M:token issue` で mint（site-worker
 #    の chat gate 用 secret。generation.murakumo.cloud の secret とは別物）。
@@ -42,22 +42,22 @@ MURAKUMO_API_KEY=... nbb --classpath src bin/storyboard.cljs \
 
 # 1) render（SVG frames + manifest.edn + cues.edn。PNG は optional dep）
 npm install @resvg/resvg-js
-nbb --classpath src bin/render.cljs examples/quantization.edn \
+nbb --classpath src bin/render.cljk examples/quantization.edn \
     --out /tmp/dougaka-vector/quantization --locale ja --png \
     [--font-dir fonts/] [--no-system-fonts]   # CI 等で font を固定する時
 
 # 2) audio plan（cues.edn → audio-plan.edn: SFX cue 選定 + ongakuka への BGM 依頼仕様）
-nbb --classpath src bin/audio_plan.cljs /tmp/dougaka-vector/quantization
+nbb --classpath src bin/audio_plan.cljk /tmp/dougaka-vector/quantization
 
 # 3) assemble — 本番は ai-gftd-dougaka（ffmpeg assembler）。単機での dev 検証用に
 #    非正規 driver を同梱（ffmpeg 1 呼び出しに徹する。assembly ロジックは持たない）:
-nbb --classpath src bin/assemble.cljs /tmp/dougaka-vector/quantization \
+nbb --classpath src bin/assemble.cljk /tmp/dougaka-vector/quantization \
     --out quantization-ja.mp4 [--bgm bgm.wav] [--sfx-dir sfx/]  # sfx/<kind>.wav
 
 # 4) publish — aozora.app が主、作者 = 1 actor DID。self-sovereign CACAO なので
 #    owner creds 不要（agent 単独実行可）。データは kotobase.net(yoro-social) に
 #    自動で載る（aozora PDS の backing store）。
-nbb --classpath src:../../kotoba-lang/kotobase-client/src bin/publish.cljs \
+nbb --classpath src:../../kotoba-lang/kotobase-client/src bin/publish.cljk \
     /tmp/dougaka-vector/quantization --mp4 quantization-ja.mp4 --locale ja \
     [--handle dougaka-vector.aozora.app] [--identity .dougaka-vector/identity.edn] [--dry-run]
 #    → dougaka-vector 作者の単一 did:key を load/create（.dougaka-vector/identity.edn に永続）
@@ -68,7 +68,7 @@ nbb --classpath src:../../kotoba-lang/kotobase-client/src bin/publish.cljs \
 
 # 5) youtube 連携投稿 — aozora record からの syndication（YouTube は主ではない）。
 #    operator OAuth 注入（YOUTUBE_CLIENT_ID/_SECRET/_REFRESH_TOKEN）が要る。
-nbb --classpath src:../../kotoba-lang/kotobase-client/src bin/youtube.cljs \
+nbb --classpath src:../../kotoba-lang/kotobase-client/src bin/youtube.cljk \
     /tmp/dougaka-vector/quantization --mp4 quantization-ja.mp4 --locale ja [--dry-run]
 #    → mp4 を YouTube に upload → youtubeUrl を aozora catalog に putRecord で書き戻す
 #      （aozora が canonical source、YouTube はその複製という join を張る）
@@ -86,21 +86,21 @@ did:key + aozora account + handle `dougaka-vector.aozora.app` + actor profile）
 
 | path | 役割 |
 |---|---|
-| `src/dougaka_vector/spec.cljc` | storyboard EDN の検証（no-throw、`{:ok? :errors}`） |
-| `src/dougaka_vector/scene.cljc` | storyboard → scenegraph compile（templates: `:title-card` `:bar-chart` `:line-chart` `:flow` `:big-number` `:callout` `:custom`） |
-| `src/dougaka_vector/timeline.cljc` | keyframe track sampling / frame times / SFX cue events |
-| `src/dougaka_vector/ease.cljc` | easing（linear/cubic/expo/back/step） |
-| `src/dougaka_vector/svg.cljc` | sampled nodes → SVG document string（`:polyline` progress 描画 / `:counter` 数値アニメ含む） |
-| `src/dougaka_vector/theme.cljc` | design tokens（`:cyber-dark`） |
-| `src/dougaka_vector/storyboard.cljc` | storyboard 生成の純関数部（prompt 契約 / EDN 抽出 / 検証 feedback） |
-| `src/dougaka_vector/audio.cljc` | cues → audio-plan（SFX ルール / coalesce / ongakuka BGM 依頼仕様） |
-| `src/dougaka_vector/publish.cljc` | publish の純関数部（work-slug/handle / profile・video・catalog record / youtube metadata） |
-| `bin/publish.cljs` | nbb CLI（作品=1 DID keyring → aozora account+profile+video post+catalog、`--dry-run`） |
-| `bin/youtube.cljs` | nbb CLI（aozora record → YouTube 連携投稿 → youtubeUrl を catalog に書き戻し） |
-| `bin/render.cljs` | nbb CLI（frames + manifest.edn + cues.edn、`--font-dir`/`--no-system-fonts`） |
-| `bin/storyboard.cljs` | nbb CLI（topic → 検証済み storyboard EDN、retry loop、`--mock`） |
-| `bin/audio_plan.cljs` | nbb CLI（render 出力 dir → audio-plan.edn） |
-| `bin/assemble.cljs` | nbb CLI（**非正規** dev mux driver。本番は ai-gftd-dougaka） |
+| `src/dougaka_vector/spec.cljk` | storyboard EDN の検証（no-throw、`{:ok? :errors}`） |
+| `src/dougaka_vector/scene.cljk` | storyboard → scenegraph compile（templates: `:title-card` `:bar-chart` `:line-chart` `:flow` `:big-number` `:callout` `:custom`） |
+| `src/dougaka_vector/timeline.cljk` | keyframe track sampling / frame times / SFX cue events |
+| `src/dougaka_vector/ease.cljk` | easing（linear/cubic/expo/back/step） |
+| `src/dougaka_vector/svg.cljk` | sampled nodes → SVG document string（`:polyline` progress 描画 / `:counter` 数値アニメ含む） |
+| `src/dougaka_vector/theme.cljk` | design tokens（`:cyber-dark`） |
+| `src/dougaka_vector/storyboard.cljk` | storyboard 生成の純関数部（prompt 契約 / EDN 抽出 / 検証 feedback） |
+| `src/dougaka_vector/audio.cljk` | cues → audio-plan（SFX ルール / coalesce / ongakuka BGM 依頼仕様） |
+| `src/dougaka_vector/publish.cljk` | publish の純関数部（work-slug/handle / profile・video・catalog record / youtube metadata） |
+| `bin/publish.cljk` | nbb CLI（作品=1 DID keyring → aozora account+profile+video post+catalog、`--dry-run`） |
+| `bin/youtube.cljk` | nbb CLI（aozora record → YouTube 連携投稿 → youtubeUrl を catalog に書き戻し） |
+| `bin/render.cljk` | nbb CLI（frames + manifest.edn + cues.edn、`--font-dir`/`--no-system-fonts`） |
+| `bin/storyboard.cljk` | nbb CLI（topic → 検証済み storyboard EDN、retry loop、`--mock`） |
+| `bin/audio_plan.cljk` | nbb CLI（render 出力 dir → audio-plan.edn） |
+| `bin/assemble.cljk` | nbb CLI（**非正規** dev mux driver。本番は ai-gftd-dougaka） |
 | `examples/quantization.edn` | 参照スタイル再現のサンプル storyboard（6 scenes / 全 template 使用 / en+ja） |
 
 ## Scenegraph（中間表現）

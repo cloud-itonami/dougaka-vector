@@ -3,7 +3,7 @@
    OpenAI-compatible chat endpoint (murakumo.cloud gateway), with a
    validation-feedback retry loop.
 
-     MURAKUMO_API_KEY=... nbb --classpath src bin/storyboard.cljs \\
+     MURAKUMO_API_KEY=... nbb --classpath src bin/storyboard.cljk \\
        \"How INT4 quantization breaks\" --out /tmp/sb.edn --locales en,ja
 
    Offline: --mock <file> uses a canned LLM response instead of the network
@@ -83,7 +83,7 @@
 
 (let [{:keys [topic out attempts] :as opts} (parse-args *command-line-args*)]
   (when-not (and topic out)
-    (println "usage: nbb --classpath src bin/storyboard.cljs <topic> --out <file.edn>"
+    (println "usage: nbb --classpath src bin/storyboard.cljk <topic> --out <file.edn>"
              "[--locales en,ja] [--max-dur 60] [--attempts 3] [--mock <raw-llm-output-file>]")
     (js/process.exit 2))
   (p/let [storyboard (attempt! opts (sb/messages topic opts) attempts)]
