@@ -1,5 +1,5 @@
 (ns run
-  "nbb test runner: nbb --classpath src:test test/run.cljk"
+  "nbb test runner: kbb --backend sci --classpath src:test test/run.cljk"
   (:require [clojure.test :as t]
             [dougaka-vector.core-test]
             [dougaka-vector.publish-test]

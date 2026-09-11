@@ -31,33 +31,33 @@ topic ──▶ storyboard EDN ──▶ scenegraph ──▶ SVG frames ──�
 
 ```bash
 # test（nbb / 第一級 runtime は ClojureScript。JVM 不要）
-nbb --classpath src:test test/run.cljk
+kbb --backend sci --classpath src:test test/run.cljk
 
 # 0) storyboard 生成（唯一の LLM ステージ。murakumo.cloud OpenAI 互換 gateway）
-MURAKUMO_API_KEY=... nbb --classpath src bin/storyboard.cljk \
+MURAKUMO_API_KEY=... kbb --backend sci --classpath src bin/storyboard.cljk \
     "How INT4 quantization breaks" --out sb.edn --locales en,ja
-#    token は cloud-murakumo README の `clojure -M:token issue` で mint（site-worker
+#    token は cloud-murakumo README の `kbb -M:token issue` で mint（site-worker
 #    の chat gate 用 secret。generation.murakumo.cloud の secret とは別物）。
 #    オフライン検証: --mock <raw-llm-output-file>（抽出・検証パスは同一）
 
 # 1) render（SVG frames + manifest.edn + cues.edn。PNG は optional dep）
 npm install @resvg/resvg-js
-nbb --classpath src bin/render.cljk examples/quantization.edn \
+kbb --backend sci --classpath src bin/render.cljk examples/quantization.edn \
     --out /tmp/dougaka-vector/quantization --locale ja --png \
     [--font-dir fonts/] [--no-system-fonts]   # CI 等で font を固定する時
 
 # 2) audio plan（cues.edn → audio-plan.edn: SFX cue 選定 + ongakuka への BGM 依頼仕様）
-nbb --classpath src bin/audio_plan.cljk /tmp/dougaka-vector/quantization
+kbb --backend sci --classpath src bin/audio_plan.cljk /tmp/dougaka-vector/quantization
 
 # 3) assemble — 本番は ai-gftd-dougaka（ffmpeg assembler）。単機での dev 検証用に
 #    非正規 driver を同梱（ffmpeg 1 呼び出しに徹する。assembly ロジックは持たない）:
-nbb --classpath src bin/assemble.cljk /tmp/dougaka-vector/quantization \
+kbb --backend sci --classpath src bin/assemble.cljk /tmp/dougaka-vector/quantization \
     --out quantization-ja.mp4 [--bgm bgm.wav] [--sfx-dir sfx/]  # sfx/<kind>.wav
 
 # 4) publish — aozora.app が主、作者 = 1 actor DID。self-sovereign CACAO なので
 #    owner creds 不要（agent 単独実行可）。データは kotobase.net(yoro-social) に
 #    自動で載る（aozora PDS の backing store）。
-nbb --classpath src:../../kotoba-lang/kotobase-client/src bin/publish.cljk \
+kbb --backend sci --classpath src:../../kotoba-lang/kotobase-client/src bin/publish.cljk \
     /tmp/dougaka-vector/quantization --mp4 quantization-ja.mp4 --locale ja \
     [--handle dougaka-vector.aozora.app] [--identity .dougaka-vector/identity.edn] [--dry-run]
 #    → dougaka-vector 作者の単一 did:key を load/create（.dougaka-vector/identity.edn に永続）
@@ -68,7 +68,7 @@ nbb --classpath src:../../kotoba-lang/kotobase-client/src bin/publish.cljk \
 
 # 5) youtube 連携投稿 — aozora record からの syndication（YouTube は主ではない）。
 #    operator OAuth 注入（YOUTUBE_CLIENT_ID/_SECRET/_REFRESH_TOKEN）が要る。
-nbb --classpath src:../../kotoba-lang/kotobase-client/src bin/youtube.cljk \
+kbb --backend sci --classpath src:../../kotoba-lang/kotobase-client/src bin/youtube.cljk \
     /tmp/dougaka-vector/quantization --mp4 quantization-ja.mp4 --locale ja [--dry-run]
 #    → mp4 を YouTube に upload → youtubeUrl を aozora catalog に putRecord で書き戻す
 #      （aozora が canonical source、YouTube はその複製という join を張る）

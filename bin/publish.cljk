@@ -9,7 +9,7 @@
    aozora. YouTube syndication needs operator OAuth env (gated otherwise).
 
    Run (needs kotobase-client src + @noble/@ipld on the classpath/node path):
-     nbb --classpath src:../../kotoba-lang/kotobase-client/src \\
+     kbb --backend sci --classpath src:../../kotoba-lang/kotobase-client/src \\
        bin/publish.cljk <render-out-dir> --mp4 <file.mp4> --locale ja \\
        [--identity .dougaka-vector/identity.edn] [--handle dougaka-vector.aozora.app] \\
        [--dry-run] [--youtube]
@@ -111,7 +111,7 @@
   (let [{:keys [dir locale dry-run youtube identity handle display-name description brief]
          :as opts} (parse-args argv)]
     (when-not dir
-      (println "usage: nbb --classpath src:<kotobase-client>/src bin/publish.cljk <render-out-dir> --mp4 <file> [--locale ja] [--handle dougaka-vector.aozora.app] [--identity path] [--display-name s] [--description s] [--brief brief.edn] [--dry-run] [--youtube]")
+      (println "usage: kbb --backend sci --classpath src:<kotobase-client>/src bin/publish.cljk <render-out-dir> --mp4 <file> [--locale ja] [--handle dougaka-vector.aozora.app] [--identity path] [--display-name s] [--description s] [--brief brief.edn] [--dry-run] [--youtube]")
       (js/process.exit 2))
     (let [{:keys [work-id title summary duration manifest mp4]} (load-context opts)
           ;; A newsfeed brief (kotoba-lang/newsfeed bin/digest.cljs --out). When
