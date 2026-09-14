@@ -1,0 +1,27 @@
+(ns dougaka-vector.siwe-test
+  "Deterministic checks for the SIWE login face (no network):
+  the EOA derives from the channel seed, the same seed always maps to the same
+  address, and the signature is 65-byte r||s||v hex."
+  (:require [clojure.test :as t :refer [deftest is]]
+            [clojure.string :as str]
+            [dougaka-vector.siwe :as siwe]))
+
+(def ^:private fixed-seed
+  (apply str (repeat 64 "ab")))
+
+(deftest eoa-is-deterministic
+  (is (= (:address (siwe/eoa-from-seed fixed-seed))
+         (:address (siwe/eoa-from-seed fixed-seed)))))
+
+(deftest eoa-has-ethereum-shape
+  (let [a (:address (siwe/eoa-from-seed fixed-seed))]
+    (is (re-matches #"0x[0-9a-f]{40}" a))
+    (is (not= a (str/lower-case (subs a 0 2))))))
+
+(deftest signature-is-65-byte-rsv-hex
+  (let [eoa (siwe/eoa-from-seed fixed-seed)
+        sig (siwe/sign-message (:private-key eoa) "auth.aozora.app wants you to sign in")]
+    (is (re-matches #"0x[0-9a-fA-F]{130}" sig))
+    ;; v byte must be 27 or 28 (viem expects EIP-155 style v for personal_sign)
+    (let [v (js/parseInt (subs sig 130 132) 16)]
+      (is (or (= v 27) (= v 28))))))

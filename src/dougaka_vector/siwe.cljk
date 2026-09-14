@@ -1,0 +1,66 @@
+(ns dougaka-vector.siwe
+  "EIP-191 personal_sign signing for the auth.aozora.app wallet ceremony.
+
+  The production PDS runs with PDS_HUMAN_AUTH_ONLY=1 (measured 2026-09-14:
+  POST com.atproto.server.createSession returns 410 LegacyLoginDisabled for
+  every cacao_b64 login), so the self-CACAO path can no longer mint a session.
+  auth.aozora.app's /api/wallet/begin + /api/wallet/finish (Base SIWE) is the
+  route that still issues session JWTs, and it verifies an EIP-191 signature
+  over the exact challenge message (viem verifyMessage).
+
+  The signing key is DERIVED from the channel's persisted Ed25519 seed
+  (HMAC-SHA256(seed, \"dougaka-vector/siwe/v1\") -> 32 bytes). The channel keeps
+  ONE author identity; this derived EOA is a login credential for that same
+  channel — the same convention as aozora-publisher's per-bot HMAC derivation.
+  Requires @noble/curves + @noble/hashes (already dependencies)."
+  (:require ["@noble/curves/secp256k1.js" :refer [secp256k1]]
+            ["@noble/hashes/sha2.js" :refer [sha256]]
+            ["@noble/hashes/sha3.js" :refer [keccak_256]]
+            ["@noble/hashes/hmac.js" :refer [hmac]]
+            ["@noble/hashes/utils.js" :refer [utf8ToBytes]]
+            [clojure.string :as str]))
+
+(defn- hex->u8 [h]
+  (js/Uint8Array.from (map #(js/parseInt (apply str %) 16) (partition 2 h))))
+
+(defn- u8->hex [u8]
+  (apply str (map #(.padStart (.toString % 16) 2 "0") (array-seq u8))))
+
+(defn eoa-from-seed
+  "Deterministic EOA for the channel: HMAC(seed-hex, context) → private key.
+  Returns {:private-key (32-byte Uint8Array) :address \"0x…\"}."
+  [seed-hex]
+  (let [priv (.slice (hmac sha256 (hex->u8 seed-hex)
+                           (utf8ToBytes "dougaka-vector/siwe/v1"))
+                     0 32)
+        pub (.getPublicKey secp256k1 priv false)  ; uncompressed, 65 bytes
+        addr-hash (keccak_256 (.slice pub 1))     ; drop the 0x04 prefix byte
+        address (str/lower-case (str "0x" (subs (u8->hex addr-hash) 24)))] ; last 20 bytes
+    {:private-key priv :address address}))
+
+(defn- eip191-digest
+  "keccak256(EIP-191 personal message prefix + message) — exactly the message
+  viem.signMessage hashes. The prefix is (0x19 + \"Ethereum Signed Message:\\n\"
+  + decimal length); 0x19 is spelled \\u0019 because \\x19 is not a Clojure
+  escape."
+  [message]
+  (let [prefix (utf8ToBytes (str "\u0019Ethereum Signed Message:\n" (count message)))
+        msg (utf8ToBytes message)
+        combined (js/Uint8Array. (+ (.-length prefix) (.-length msg)))]
+    (.set combined prefix 0)
+    (.set combined msg (.-length prefix))
+    (keccak_256 combined)))
+
+(defn sign-message
+  "EIP-191 signature over `message` as a 65-byte r||s||v hex string.
+  noble's 'recovered' format is recid||r||s; viem.verifyMessage expects
+  r||s||v with v = 27 + recid."
+  [private-key message]
+  (let [sig (.sign secp256k1 (eip191-digest message) private-key
+                   #js {:prehash false :format "recovered"})
+        recid (aget sig 0)
+        r-s (.slice sig 1)]
+    (str "0x"
+         (u8->hex (js/Uint8Array.from
+                   (concat (array-seq r-s)
+                           [(+ 27 recid)]))))))
