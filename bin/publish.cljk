@@ -4,9 +4,12 @@
    records), then optionally syndicate to YouTube from the aozora record. Data
    lands on kotobase.net automatically (aozora PDS backs onto it).
 
-   Auth is self-sovereign: the author's single persisted Ed25519 seed → did:key
-   → depth-1 self-minted CACAO (kotobase.cacao). No owner credentials for
-   aozora. YouTube syndication needs operator OAuth env (gated otherwise).
+   Auth: the author's single persisted Ed25519 seed owns the channel. The
+   login session comes from auth.aozora.app's Base SIWE wallet ceremony with an
+   EOA derived from that same seed (dougaka_vector.siwe) — the production PDS
+   runs with PDS_HUMAN_AUTH_ONLY=1, so CACAO self-mint login answers 410
+   LegacyLoginDisabled (measured 2026-09-14). No owner credentials for aozora.
+   YouTube syndication needs operator OAuth env (gated otherwise).
 
    Run (needs kotobase-client src + @noble/@ipld on the classpath/node path):
      kbb --backend sci --classpath src:../../kotoba-lang/kotobase-client/src \\
@@ -24,12 +27,11 @@
             ["@noble/curves/ed25519.js" :refer [ed25519]]
             [clojure.edn :as edn]
             [promesa.core :as p]
-            [kotobase.cacao :as cacao]
             [kotobase.cid :as cid]
+            [dougaka-vector.siwe :as siwe]
             [dougaka-vector.publish :as pub]))
 
 (def pds "https://pds.aozora.app")
-(def aud "did:web:aozora.app")
 
 (defn- parse-args [argv]
   (loop [args argv opts {:locale :en :handle (:handle pub/channel)
@@ -71,6 +73,44 @@
       (when (seq dir) (fs/mkdirSync dir #js {:recursive true}))
       (fs/writeFileSync path (pr-str (dissoc m :seed)))
       (assoc m :seed seed))))
+
+;; ── session (auth.aozora.app wallet ceremony) ────────────────────────────────
+
+(def auth-origin "https://auth.aozora.app")
+
+(defn http-json!
+  ([url method body] (http-json! url method body nil))
+  ([url method body jwt]
+   (p/let [res (js/fetch url
+                         (clj->js (cond-> {:method method
+                                           :headers {"content-type" "application/json"
+                                                     "origin" auth-origin}}
+                                    jwt (assoc-in [:headers "authorization"] (str "Bearer " jwt))
+                                    body (assoc :body (js/JSON.stringify (clj->js body))))))
+           j (.json res)]
+     (js->clj j :keywordize-keys true))))
+
+(defn siwe-session!
+  "Session JWTs from auth.aozora.app (Base SIWE).
+
+   The production PDS runs with PDS_HUMAN_AUTH_ONLY=1 — measured 2026-09-14,
+   com.atproto.server.createSession answers 410 LegacyLoginDisabled to every
+   cacao_b64 login, so the CACAO self-mint path below cannot mint a session
+   anymore. The wallet ceremony (begin → EIP-191 sign → finish) still issues
+   session JWTs; the EOA is derived from the SAME channel seed
+   (dougaka_vector.siwe/eoa-from-seed), so one author identity keeps owning the
+   account. The session DID is did:pkh:eip155:8453:<address>."
+  [seed-hex]
+  (let [{:keys [private-key address]} (siwe/eoa-from-seed seed-hex)]
+    (p/let [b (http-json! (str auth-origin "/api/wallet/begin") "POST" {:address address})
+            _ (when-not (:ticket b)
+                (throw (js/Error. (str "wallet/begin failed: " (js/JSON.stringify (clj->js b))))))
+            f (http-json! (str auth-origin "/api/wallet/finish") "POST"
+                          {:ticket (:ticket b)
+                           :signature (siwe/sign-message private-key (:message b))})]
+      (when-not (:accessJwt f)
+        (throw (js/Error. (str "wallet/finish failed: " (js/JSON.stringify (clj->js f))))))
+      f)))
 
 ;; ── XRPC ─────────────────────────────────────────────────────────────────────
 
@@ -122,9 +162,6 @@
           slug (pub/work-slug work-id)
           id (load-or-create-author-identity! identity handle)
           now (.toISOString (js/Date.))
-          mint #(:cacao-b64 (cacao/mint-cacao {:secret-key (:seed id) :aud aud
-                                               :capability "account:session"
-                                               :graph (:did id) :ttl-sec 300}))
           ;; The channel identity is per-run, not per-repo. Publishing a
           ;; murakumo or kotobase news work under dougaka-vector's own name and
           ;; description would misattribute it — one repo now drives more than
@@ -139,14 +176,15 @@
                         :lead-url (:cite/url lead)
                         :also-count (max 0 (dec (count (:brief/citations brief))))})
                       (str "『" title "』"))]
-      (println "author did  :" (:did id) "(作者=1 DID)")
+      (println "author seed did:" (:did id) "(channel identity; login derives its EOA from this seed)")
       (println "handle      :" (:handle id))
       (println "work        :" work-id "→ rkey" slug)
       (println "mp4         :" mp4 (if (fs/existsSync mp4) "" "(MISSING)"))
       (if dry-run
         (do
           (println "\n--- DRY RUN (no network) ---")
-          (println "createAccount body   :" (pr-str {:handle (:handle id) :cacao_b64 "<cacao>"}))
+          (let [{:keys [address]} (siwe/eoa-from-seed (:seed-hex id))]
+            (println "siwe login address:" address "(did:pkh:eip155:8453:" address ")"))
           (println "author profile (self):" (pr-str profile))
           (println "video post" slug ":" (pr-str (pub/video-post-record
                                                   {:text post-text :src (str pds "/xrpc/com.atproto.sync.getBlob?cid=<cid>")
@@ -169,12 +207,10 @@
           (js/process.exit 0))
         (p/let [_ (when-not (fs/existsSync mp4)
                     (println "mp4 not found:" mp4) (js/process.exit 1))
-                acct (xrpc! "com.atproto.server.createAccount" {:handle (:handle id) :cacao_b64 (mint)} nil)
-                sess (if (:accessJwt acct) acct
-                         (xrpc! "com.atproto.server.createSession" {:cacao_b64 (mint)} nil))
+                sess (siwe-session! (:seed-hex id))
                 jwt (:accessJwt sess)
-                _ (when-not jwt (throw (js/Error. (str "auth failed: " (js/JSON.stringify (clj->js [acct sess]))))))
-                rdid (or (:did sess) (:did id))
+                _ (when-not jwt (throw (js/Error. "auth failed: no accessJwt from wallet/finish")))
+                rdid (:did sess)
                 blob (upload-blob! mp4 jwt)
                 _ (when-not blob (throw (js/Error. "uploadBlob failed")))
                 blob-cid (get-in blob [:ref :$link])

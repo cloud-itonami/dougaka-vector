@@ -12,6 +12,8 @@
   "src/dougaka_vector/audio.cljk" ".cljc"
   "src/dougaka_vector/ease.cljk" ".cljc"
   "src/dougaka_vector/publish.cljk" ".cljc"
+  "src/dougaka_vector/siwe.cljk" ".cljs"
+  "test/dougaka_vector/siwe_test.cljk" ".cljs"
   "src/dougaka_vector/scene.cljk" ".cljc"
   "src/dougaka_vector/spec.cljk" ".cljc"
   "src/dougaka_vector/storyboard.cljk" ".cljc"
