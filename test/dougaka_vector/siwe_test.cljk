@@ -2,7 +2,7 @@
   "Deterministic checks for the SIWE login face (no network):
   the EOA derives from the channel seed, the same seed always maps to the same
   address, and the signature is 65-byte r||s||v hex."
-  (:require [clojure.test :as t :refer [deftest is]]
+  (:require [kotoba.test :as t :refer [deftest is]]
             [clojure.string :as str]
             [dougaka-vector.siwe :as siwe]))
 

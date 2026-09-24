@@ -10,3 +10,4 @@ out/
 
 # Clojure classpath cache — build output, machine-local.
 .cpcache/
+.nbb/
