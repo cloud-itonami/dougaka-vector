@@ -3,7 +3,7 @@
    This ns holds the pure parts (prompt construction, response extraction,
    validation feedback); the HTTP loop lives in bin/storyboard.cljk so these
    functions stay testable offline on every runtime."
-  (:require [clojure.edn :as edn]
+  (:require [kotoba.lang.edn :as edn]
             [kotoba.lang.text :as str]
             [dougaka-vector.spec :as spec]))
 

@@ -11,7 +11,7 @@
      ffmpeg -framerate <fps> -i frames/%06d.png -pix_fmt yuv420p out.mp4"
   (:require ["fs" :as fs]
             ["path" :as path]
-            [clojure.edn :as edn]
+            [kotoba.lang.edn :as edn]
             [dougaka-vector.spec :as spec]
             [dougaka-vector.scene :as scene]
             [dougaka-vector.svg :as svg]

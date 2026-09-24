@@ -4,7 +4,7 @@
      kbb --backend sci --classpath src bin/audio_plan.cljk /tmp/dougaka-vector/quantization"
   (:require ["fs" :as fs]
             ["path" :as path]
-            [clojure.edn :as edn]
+            [kotoba.lang.edn :as edn]
             [dougaka-vector.audio :as audio]))
 
 (let [[dir] *command-line-args*]
