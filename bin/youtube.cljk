@@ -28,7 +28,7 @@
   (:require ["fs" :as fs]
             ["path" :as path]
             ["@noble/curves/ed25519.js" :refer [ed25519]]
-            [clojure.edn :as edn]
+            [kotoba.lang.edn :as edn]
             [promesa.core :as p]
             [kotobase.cacao :as cacao]
             [kotobase.cid :as cid]

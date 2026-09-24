@@ -14,7 +14,7 @@
   (:require ["fs" :as fs]
             ["path" :as path]
             ["child_process" :as cp]
-            [clojure.edn :as edn]
+            [kotoba.lang.edn :as edn]
             [kotoba.lang.text :as str]))
 
 (defn- parse-args [argv]
