@@ -13,7 +13,7 @@
    bearing test is the retry after a crash between the upload and the record.
 
    Nothing here touches the network or YouTube; every identifier is synthetic."
-  (:require [clojure.test :as t :refer [deftest is testing]]
+  (:require [kotoba.test :as t :refer [deftest is testing]]
             [promesa.core :as p]
             [dougaka-vector.youtube :as yt]))
 

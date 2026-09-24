@@ -1,6 +1,6 @@
 (ns run
   "nbb test runner: kbb --backend sci --classpath src:test test/run.cljk"
-  (:require [clojure.test :as t]
+  (:require [kotoba.test :as t]
             [dougaka-vector.core-test]
             [dougaka-vector.publish-test]
             [dougaka-vector.siwe-test]

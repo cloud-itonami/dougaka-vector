@@ -1,5 +1,5 @@
 (ns dougaka-vector.core-test
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [kotoba.test :refer [deftest is testing]]
             [kotoba.lang.text :as str]
             [dougaka-vector.ease :as ease]
             [dougaka-vector.timeline :as timeline]
