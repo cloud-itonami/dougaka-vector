@@ -18,7 +18,7 @@
             ["@noble/hashes/sha3.js" :refer [keccak_256]]
             ["@noble/hashes/hmac.js" :refer [hmac]]
             ["@noble/hashes/utils.js" :refer [utf8ToBytes]]
-            [clojure.string :as str]))
+            [kotoba.lang.text :as str]))
 
 (defn- hex->u8 [h]
   (js/Uint8Array.from (map #(js/parseInt (apply str %) 16) (partition 2 h))))
@@ -35,7 +35,7 @@
                      0 32)
         pub (.getPublicKey secp256k1 priv false)  ; uncompressed, 65 bytes
         addr-hash (keccak_256 (.slice pub 1))     ; drop the 0x04 prefix byte
-        address (str/lower-case (str "0x" (subs (u8->hex addr-hash) 24)))] ; last 20 bytes
+        address (str/lower (str "0x" (subs (u8->hex addr-hash) 24)))] ; last 20 bytes
     {:private-key priv :address address}))
 
 (defn- eip191-digest
