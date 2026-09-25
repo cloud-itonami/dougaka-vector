@@ -3,7 +3,7 @@
   the EOA derives from the channel seed, the same seed always maps to the same
   address, and the signature is 65-byte r||s||v hex."
   (:require [kotoba.test :as t :refer [deftest is]]
-            [clojure.string :as str]
+            [kotoba.lang.text :as str]
             [dougaka-vector.siwe :as siwe]))
 
 (def ^:private fixed-seed
@@ -16,7 +16,7 @@
 (deftest eoa-has-ethereum-shape
   (let [a (:address (siwe/eoa-from-seed fixed-seed))]
     (is (re-matches #"0x[0-9a-f]{40}" a))
-    (is (not= a (str/lower-case (subs a 0 2))))))
+    (is (not= a (str/lower (subs a 0 2))))))
 
 (deftest signature-is-65-byte-rsv-hex
   (let [eoa (siwe/eoa-from-seed fixed-seed)
